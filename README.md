@@ -1,7 +1,7 @@
 # P1-LoRa bridge
 > You see, wire telegraph is a kind of a very, very long cat. You pull his tail in New York and his head is meowing in Los Angeles. And radio operates exactly the same way. The only difference is that there is no cat.  
 > \-  Albert Einstein (attributed)
-> 
+
 Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiFi enabled receiver with this firmware for ESP32 microcontrollers and Semtech SX1276/77/78/79 radios.
 
 ## Introduction
