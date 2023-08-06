@@ -1,7 +1,8 @@
 # P1-LoRa bridge
-Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiFi enabled receiver with this firmware for ESP32 microcontrollers and Semtech SX1276/77/78/79 radios
 > You see, wire telegraph is a kind of a very, very long cat. You pull his tail in New York and his head is meowing in Los Angeles. And radio operates exactly the same way. The only difference is that there is no cat.  
 > \-  Albert Einstein (attributed)
+> 
+Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiFi enabled receiver with this firmware for ESP32 microcontrollers and Semtech SX1276/77/78/79 radios.
 
 ## Introduction
 This repo contains firmware for ESP32 microcontrollers equipped with Semtech SX1276/77/78/79 LoRa radios to transmit DSMR P1 telegrams from Dutch/Belgian energy meters over long ranges to a WiFi enabled receiver, which forwards the meter data to the local network (e.g. over MQTT). 
