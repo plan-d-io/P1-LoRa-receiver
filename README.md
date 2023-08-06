@@ -100,5 +100,5 @@ So, if the transmitter and receiver are located a long _horizontal_ distance apa
 
 Note that LoRa uses [chirp spread spectrum](https://en.wikipedia.org/wiki/Chirp_spread_spectrum), enabling it to benefit from multipath propagation. This means that the transmitter could, _potentially_, more easily reach the receiver by bouncing its signals off on other objects, like nearby facades, than it would by trying the shortest path through challenging RF objects (e.g. reinforced concrete floors). Try different positions for the antennas if perfomarnce isn't gooed. RF isn't a precise science, YMMV.
 
-### Indoor receiver location
+#### Indoor receiver location
 To ensure reliable communication, the location of the receiver is even more important than the location of the transmitter. LoRa has a property called _light indoor reception_, meaning reception quality quickly fades (due to [destructive interference](https://en.wikipedia.org/wiki/Wave_interference)) as the receiver is placed more indoors. Therefore it is recommended to place the receiver as close as possible to a window facing the shortest (RF) path to the receiver.
