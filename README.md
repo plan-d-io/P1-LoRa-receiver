@@ -69,7 +69,7 @@ Air time is dependent on the size of the payload (three-phase meters have a larg
 
 Each increment in SF or decrement in BW roughly halves the amount of LoRa airtime and, as such, doubles update rates (see table above). Symbol encoding is kept default on this firmware.
 
-A lower BW (125 vs 250) might help with penetration of challenging environments (e.g. multiple solid walls), but also increases the chances of clock mismatch between transmitter and receiver (see xxx). This can especially be a problem with cheaper LoRa modules, or transmitter/receiver modules from different manufacturers. By default, this firmware only uses BW 125 during the first RF handshake step, switching to BW 250 for all steps afterwards.
+A lower BW (125 vs 250) might help with penetration of challenging RF environments (e.g. multiple solid walls), but also increases the chances of clock mismatch between transmitter and receiver. This can especially be a problem with cheaper LoRa modules, or transmitter/receiver modules from different manufacturers. By default, this firmware only uses BW 125 during the first RF handshake step, switching to BW 250 for all steps afterwards.
 
 ## LoRa RF channel handshake
 One of the special features of this firmware is the LoRa handshake, by which transmitter and receiver negotiate the best possible RF settings to enable the fastest but still reliable update rate. This works as follow:
