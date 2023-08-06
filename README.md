@@ -18,7 +18,7 @@ The code in this repo is tested and verified to work on LilyGO TTGO T3 LoRa32 86
 ## Features
 - Transmit P1 meter telegrams in (near) real-time from locations outside WiFi range
 - Auto-negotiation of LoRa RF channel parameters ("LoRa handshake") between transmitter and receiver to achieve optimal data throughput
-- Auto-tune of LoRa RF channel parameters during operation to ensure optimal throughput even if RF environment changes
+- Auto-tune of LoRa RF channel parameters during operation to ensure optimal throughput even if the RF (Radio Frequency) environment changes
 - AES256 encryption of meter data over LoRa
 - MQTT client on receiver side
 - Home Assistant integration
@@ -88,13 +88,17 @@ Likewise, if the receiver has not received any P1 meter telegram for more than 1
 
 Additionally, if packet loss is below 15%, a new handshake is initiated to settle on settings providing higher throughput. This all happens automatically. 
 
-## Receiver
-The receiver connects to your WiFi and pushes 
-Transmitter receives acknowledgement and starts sending virtual meter telegrams (containing the same amount of bytes of a real digital meter telegram). Transmitter also calculates (but does not send) CRC.
-Receiver receives telegram, calculates CRC, transmits CRC as acknowledgement back to transmitter.
-Transmitter receives CRC, compares with calculated CRC to check RF channel integrity, repeats this a few times.
-If RF channel integrity has been confirmed, transmitter instructs receiver to switch to better RF channel (higher BW and lower SF) and switches as well.
-This repeats until RF channel integrity cannot longer be confirmed, or until  SF7 BW250 (best settings possible).
-If RF channel integrity could not be established, both transmitter and receiver switch back to RF settings which were known to work.
-After this handshake has concluded, the transmitter starts sending meter telegrams containing real data from the P1 port. For every received telegram, the receiver sends back the CRC. The transmitter checks this CRC to determine packet loss. If packet loss is too high, a new
+## FAQ & troubleshooting
+> I once attended a wedding of two antennas. The ceremony wasn't great, but the reception was excellent.  
+> \-  The author of this repository (attributed)
 
+### Tips to improve reception quality
+#### Antenna orientation
+You are most probably using a [rubber ducky antenna](https://en.wikipedia.org/wiki/Rubber_ducky_antenna) on both transmitter and receiver. These monopole antennas radiate vertically polarized radio waves. In short, this means you need to align the antenna orientation of both transmitter and receiver in the same plane for optimal reception quality. Additionally, monopoles have a radiation pattern that more or less resembles  a donut. This means that there "dead spots" exactly above and below the antenna.
+
+So, if the transmitter and receiver are located a long _horizontal_ distance apart, point both antennas _vertically_. If the transmitter and receiver are located a long _vertical_ distance apart (e.g. a basement level directly below), you might have better luck pointing the antennas _horizontally_. For anything in between, try to align them on an imaginary common plain.
+
+Note that LoRa uses [chirp spread spectrum](https://en.wikipedia.org/wiki/Chirp_spread_spectrum), enabling it to benefit from multipath propagation. This means that the transmitter could,  more easily connect to the receiver by bouncing its signals on other objects, like nearby facades, than it would by trying the shortest path through challenging RF objects (e.g. reinforced concrete floors). Try different positions for the antennas if perfomarnce isn't gooed. RF isn't a precise science, YMMV.
+
+### Indoor receiver location
+To ensure reliable communication, the location of the receiver is even more important than the location of the transmitter. LoRa has a property called _light indoor reception_. 
