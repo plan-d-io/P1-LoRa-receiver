@@ -71,18 +71,20 @@ Each increment in SF or decrement in BW roughly halves the amount of LoRa airtim
 
 A lower BW (125 vs 250) might help with penetration of challenging environments (e.g. multiple solid walls), but also increases the chances of clock mismatch between transmitter and receiver (see xxx). This can especially be a problem with cheaper LoRa modules, or transmitter/receiver modules from different manufacturers. By default, this firmware only uses BW 125 during the first RF handshake step, switching to BW 250 for all steps afterwards.
 
-## LoRa RC channel handshake
-One of the special features of this firmware is the LoRa handshake, by which transmitter and receiver determine the best possible RF settings to enable the fastest but still reliable update rate. This works as follow:
+## LoRa RF channel handshake
+One of the special features of this firmware is the LoRa handshake, by which transmitter and receiver negotiate the best possible RF settings to enable the fastest but still reliable update rate. This works as follow:
 - The receiver starts up, connects to your Wi-Fi, and starts listening to LoRa broadcasts from the transmitter on SF12 BW125.
 - Once connected to your digital meter, the transmitters starts up and sends discovery packets on SF12 BW125. This is the lowest bandwidth supported, but it does have the best range.
-- Once the receiver receives the discovery packet, a handshake between the transmitter and receiver is initiated by exchanging (virtual) meter telegrams (by the transmitter) and CRC acknowledgements (by the receiver) at increasingly higher bandwidth settings. These virtual meter telegrams contain the same amount of data of single-phase meter telegram, and are used to assess the RF channel quality.
+- Once the receiver receives the discovery packet, a handshake between the transmitter and receiver is initiated by exchanging (virtual) meter telegrams (by the transmitter) and CRC acknowledgements (by the receiver) at increasingly higher bandwidth settings. These virtual meter telegrams contain the same amount of data of single-phase meter telegram, and are used to assess the RF channel performance.
 - Both transmitter and receiver eventually settle on the highest bandwidth setting still allowing reliable communication (packet loss < 50%).
 - Once the transmitter and receiver are synced, real P1 meter telegrams are exchanged. The update rate is dependent on the RF channel settings to comply to the 1% duty cycle limit.
 
 ## RF channel monitoring
-Another special feature of this firmware is continous RF channel performance monitoring. LoRa RF channel performance might change during the day, e.g. damp vs dry weather or a car parked in front of your digital meter in the basement of your apartment building. Both transmitter and receiver keep track of RF channel performance by exchanging CRC acknowledgments of transmitted meter telegrams. As such, the transmitter can determine how many transmitted meter telegrams have reached the receiver. If packet loss is more than 50%, a new RF handshake is initiated to settle on more reliable RF channel parameters. 
+Another special feature of this firmware is continous RF channel performance monitoring. 
 
-Likewise, if the receiver has not received any P1 meter telegram for more than 15 minutes it reverts back to RF handshake mode. By doing so, both transmitter and receiver eventually revert back to handshake mode if communication is lost, allowing them to re-establish succesful communication.
+LoRa RF channel performance might change during the day, e.g. damp vs dry weather or a car parked in front of your digital meter in the basement of your apartment building. Both transmitter and receiver keep track of RF channel performance by exchanging CRC acknowledgments of transmitted meter telegrams. As such, the transmitter can determine how many transmitted meter telegrams have reached the receiver. If packet loss is more than 50%, a new RF handshake is initiated to settle on more reliable RF channel parameters. 
+
+Likewise, if the receiver has not received any P1 meter telegram for more than 15 minutes it reverts back to RF handshake mode. By doing so, both transmitter and receiver eventually revert back to handshake mode if communication is lost for longer periods, allowing them to re-establish succesful communication.
 
 Additionally, if packet loss is below 15%, a new handshake is initiated to settle on settings providing higher throughput. This all happens automatically. 
 
