@@ -1,5 +1,5 @@
 # P1-LoRa bridge
-Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiFi enabled receiver, using this firmware for ESP32 microcontrollers and Semtech SX1276/77/78/79 radios
+Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiFi enabled receiver with this firmware for ESP32 microcontrollers and Semtech SX1276/77/78/79 radios
 > You see, wire telegraph is a kind of a very, very long cat. You pull his tail in New York and his head is meowing in Los Angeles. And radio operates exactly the same way. The only difference is that there is no cat.  
 > \-  Albert Einstein (attributed)
 
@@ -23,9 +23,42 @@ The code in this repo is tested and verified to work on LilyGO TTGO T3 LoRa32 86
 - Home Assistant integration
 
 ## Use case
-Most devices enabling real-time access to P1 meter data (“_dongles_”) use WiFi. Flats and condos, however, often have their utility meters outside Wi-Fi access, e.g. in a basement or another shared space. This firmware uses LoRa to connect P1 utility meters to the home WiFi network. LoRa is a radio protocol designed to carry small amounts of data over long distances and/or challenging environments like multiple floors. So it’s like the very long cat, except that there is no cat.
+Most devices enabling real-time access to P1 meter data (“_dongles_”) use WiFi. Flats and condos, however, often have their utility meters beyond Wi-Fi access, e.g. in a basement or another shared space. This repo contains code to use LoRa to connect P1 utility meters to a base station connected to your home WiFi network. LoRa is a radio protocol designed to carry small amounts of data over long distances and/or challenging environments like multiple floors. So it’s like the very long cat, except that there is no cat.
+
+Why roll your own base station, in stead of relying on a LoRaWAN, NB-IoT or other public networks?
+- Cost: no monthly charges whatsoever
+- Update rate: most public networks limit airtime to 0.1%, meaning you can get, at most, one update every 15 min (if you are lucky and have an expensive data plan). This firmware gives you updates every ~30s to 6m.
+- Privacy: your meter data does not travel any third party network, nor is it processed by anyone else but yourself or the provider of your own choosing.
 
 ## Installation
+### Preparation
+This firmware is meant for compiling in the Arduino 1.x IDE use the ESP32 Arduino core 2.0.7 or later.
+
+You will need some additional libraries.
+* In Arduino IDE Go to _Sketch_>_Include Library_>_Manage Libraries_. Search for and install the following libraries
+  * `LoRa` by Sandeep Mistry version **0.8.0**
+  * `PubSubClient` by Nick O'Leary version **2.8.0**
+  * `ArduinoJSon` by Benoit Blanchon version **6.19.4**
+  * `elapsedMillis` by Peter Feerick version **1.0.6**
+
+By default, the code in this repo is written for LilyGO TTGO T3 LoRa32 OLED boards. However, it should  work with any ESP32 Pico D4 connected to a Semtech SX1276/77/78/79 radio. You might need to change some code.
+
+### Hardware
+To connect the transmitting ESP32 to your digital meters' P1 port, you will need a level shifter to transform the 5V P1 signal to an 3.3 inverted signal which can be fed to the ESP32. You can find a [suitable schematic here](https://github.com/plan-d-io/P1-dongle/wiki/Build:-DIY-instructions#building-from-scratch). Note that this firmware uses ESP32 pins 12 and 13 as RX and TX.
+
+### Compiling
+The code in **this** repository is meant for the _receiver_, meaning the ESP32 which will act as a base station, receiving P1 telegrams over LoRa and forwarding them over your home WiFi. 
+Compile and flash the code in this repository to the _transmitter_, the ESP32 connected to your digital meter.
+
+Ensure the `networkNum`, `plaintextKey` and `networkID` variables are set to identical values on both transmitter or receiver, or else communication will fail.
+
+### Installation
+- Flash the receiver first. Place it on a suitable location (see FAQ below) and power it up. The receiver will start to listen to transmitter broadcast packets on SF12 BW125.
+- Flash the transmitter. Connect it to your digital meters' P1 port through the level shifter. It will start transmitting broadcast packets on SF12 BW125.
+- If both transmitter and receiver can hear each other, they will start a handshake to determine the optimal RF channel settings.
+- Once the handshake is concluded, the transmitter will start forwarding the P1 meter telegrams.
+- If you have provided valid MQTT settings in the receiver firmware, it will start forwarding P1 meter data over MQTT.
+- If you have provided valid Home Assistant settings in the receiver firmware, it will create a MQTT device in HA and update it with every received P1 telegram (note: you need to have an MQTT broker running).
 
 ## About LoRa
 LoRa operates in the unlicensed ISM radio spectrum. Anyone is free to use this slice of spectrum as long as they adhere to a maximum use time, defined as the duty cycle limit. For EU 868MHz, the maximum duty cycle is 1%. So if there are 86400 seconds in a day, this means your device can transmit a total of 86400 x 1% = 864 seconds per day. This is called the _air time_.
