@@ -8,8 +8,8 @@ Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiF
 This repo contains firmware for ESP32 microcontrollers equipped with Semtech SX1276/77/78/79 LoRa radios to transmit DSMR P1 telegrams from Dutch/Belgian energy meters over long ranges to a WiFi enabled receiver, which forwards the meter data to the local network (e.g. over MQTT). 
 
 For this to work, you’ll need two ESP32s:
--	One ESP32 to connect to your utility meter and transmit P1 telegrams over LoRa
--	Another ESP32 at your home, to receive the LoRa P1 telegrams and forward them over your home Wi-Fi connection.
+-	One ESP32 to connect to your utility meter and transmit P1 telegrams over LoRa, the _transmitter_.
+-	Another ESP32 at your home, to receive the LoRa P1 telegrams and forward them over your home Wi-Fi connection, the _receiver_.
 
 The code in this repo is tested and verified to work on LilyGO TTGO T3 LoRa32 868MHz V1.6.1 ESP32 boards, but should work for any ESP32 Pico D4 with a Semtech SX1276/77/78/79 radio. YMMV.
 
