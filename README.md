@@ -8,8 +8,8 @@ Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiF
 This repo contains firmware for ESP32 microcontrollers equipped with Semtech SX1276/77/78/79 LoRa radios to transmit DSMR P1 telegrams from Dutch/Belgian energy meters over long ranges to a WiFi enabled receiver, which forwards the meter data to the local network (e.g. over MQTT). 
 
 For this to work, you’ll need two ESP32s:
--	One ESP32 to connect to your utility meter and transmit P1 telegrams over LoRa, the _transmitter_.
--	Another ESP32 at your home, to receive the LoRa P1 telegrams and forward them over your home Wi-Fi connection, the _receiver_.
+-	One ESP32 to connect to your utility meter and transmit P1 telegrams over LoRa: the _transmitter_.
+-	Another ESP32 at your home, to receive the LoRa P1 telegrams and forward them over your home Wi-Fi connection: the _receiver_.
 
 The code in this repo is tested and verified to work on LilyGO TTGO T3 LoRa32 868MHz V1.6.1 ESP32 boards, but should work for any ESP32 Pico D4 with a Semtech SX1276/77/78/79 radio. YMMV.
 
@@ -17,17 +17,17 @@ The code in this repo is tested and verified to work on LilyGO TTGO T3 LoRa32 86
 
 ## Features
 - Transmit P1 meter telegrams in (near) real-time from locations outside WiFi range
-- Auto-negotiation of LoRa RF channel parameters between transmitter and receiver to achieve optimal data throughput
+- Auto-negotiation of LoRa RF channel parameters ("LoRa handshake") between transmitter and receiver to achieve optimal data throughput
 - Auto-tune of LoRa RF channel parameters during operation to ensure optimal throughput even if RF environment changes
 - AES256 encryption of meter data over LoRa
 - MQTT client on receiver side
 - Home Assistant integration
 
 ## Use case
-Most devices enabling real-time access to P1 meter data (“_dongles_”) use WiFi. Flats and condos, however, often have their utility meters beyond Wi-Fi access, e.g. in a basement or another shared space. This repo contains code to use LoRa to connect P1 utility meters to a base station connected to your home WiFi network. LoRa is a radio protocol designed to carry small amounts of data over long distances and/or challenging environments like multiple floors. So it’s like the very long cat, except that there is no cat.
+Most devices enabling real-time access to P1 meter data (“_dongles_”) use WiFi. Flats and condos, however, often have their utility meters beyond Wi-Fi access, e.g. in a basement or another shared space. This repo contains code to use LoRa to connect P1 utility meters to a base station connected to your home WiFi network. LoRa is a radio protocol designed to carry small amounts of data over long distances and/or challenging environments like multiple floors. _So it’s like the very long cat, except that there is no cat._
 
 Why roll your own base station, in stead of relying on a LoRaWAN, NB-IoT or other public networks?
-- Cost: no monthly charges whatsoever
+- Cost: no monthly charges whatsoever.
 - Update rate: most public networks limit airtime to 0.1%, meaning you can get, at most, one update every 15 min (if you are lucky and have an expensive data plan). This firmware gives you updates every ~30s to 6m.
 - Privacy: your meter data does not travel any third party network, nor is it processed by anyone else but yourself or the provider of your own choosing.
 
@@ -49,6 +49,7 @@ To connect the transmitting ESP32 to your digital meters' P1 port, you will need
 
 ### Compiling
 The code in **this** repository is meant for the _receiver_, meaning the ESP32 which will act as a base station, receiving P1 telegrams over LoRa and forwarding them over your home WiFi. 
+
 Compile and flash the code in this repository to the _transmitter_, the ESP32 connected to your digital meter.
 
 Ensure the `networkNum`, `plaintextKey` and `networkID` variables are set to identical values on both transmitter or receiver, or else communication will fail.
@@ -64,20 +65,26 @@ Ensure the `networkNum`, `plaintextKey` and `networkID` variables are set to ide
 ## About LoRa
 LoRa operates in the unlicensed ISM radio spectrum. Anyone is free to use this slice of spectrum as long as they adhere to a maximum use time, defined as the duty cycle limit. For EU 868MHz, the maximum duty cycle is 1%. So if there are 86400 seconds in a day, this means your device can transmit a total of 86400 x 1% = 864 seconds per day. This is called the _air time_.
 
-Air time is dependent on the size of the payload (three-phase meters have a larger payload than single-phase meters), symbol encoding and RF channel settings (bandwidth (BW) and spreading factor (SF)). 
+Air time is dependent on the size of the payload (three-phase meters have a larger payload than single-phase meters), symbol encoding and RF channel settings (bandwidth _BW_ and spreading factor _SF_). 
 
-Each increment in both SF or BW roughly halves the amount of LoRa airtime and, as such, doubles update rates (see table above). Symbol encoding is kept default on this firmware.
+Each increment in SF or decrement in BW roughly halves the amount of LoRa airtime and, as such, doubles update rates (see table above). Symbol encoding is kept default on this firmware.
 
 A lower BW (125 vs 250) might help with penetration of challenging environments (e.g. multiple solid walls), but also increases the chances of clock mismatch between transmitter and receiver (see xxx). This can especially be a problem with cheaper LoRa modules, or transmitter/receiver modules from different manufacturers. By default, this firmware only uses BW 125 during the first RF handshake step, switching to BW 250 for all steps afterwards.
 
-## RF auto negotiation
+## LoRa RC channel handshake
+One of the special features of this firmware is the LoRa handshake, by which transmitter and receiver determine the best possible RF settings to enable the fastest but still reliable update rate. This works as follow:
 - The receiver starts up, connects to your Wi-Fi, and starts listening to LoRa broadcasts from the transmitter on SF12 BW125.
 - Once connected to your digital meter, the transmitters starts up and sends discovery packets on SF12 BW125. This is the lowest bandwidth supported, but it does have the best range.
-- Once the receiver receives the discovery packet, a handshake between the transmitter and receiver is initiated by exchanging (virtual) meter telegrams and CRC acknowledgements at increasingly higher bandwidth settings. Both transmitter and receiver eventually settle on the highest bandwidth setting still allowing reliable communication (packet loss < 50%).
+- Once the receiver receives the discovery packet, a handshake between the transmitter and receiver is initiated by exchanging (virtual) meter telegrams (by the transmitter) and CRC acknowledgements (by the receiver) at increasingly higher bandwidth settings. These virtual meter telegrams contain the same amount of data of single-phase meter telegram, and are used to assess the RF channel quality.
+- Both transmitter and receiver eventually settle on the highest bandwidth setting still allowing reliable communication (packet loss < 50%).
 - Once the transmitter and receiver are synced, real P1 meter telegrams are exchanged. The update rate is dependent on the RF channel settings to comply to the 1% duty cycle limit.
 
 ## RF channel monitoring
-RF channel performance might change during the day, e.g. damp vs dry weather or a car parked in front of your digital meter in the basement of your apartment building. Both transmitter and receiver keep track of RF channel integrity by exchanging CRC acknowledgments of transmitted meter telegrams. If packet loss is more than 50%,  a new RF handshake is initiated to settle on more reliable settings. Likewise, if packet loss is below 15%, a new handshake is initiated to settle on settings providing higher throughput. This all happens automatically. 
+Another special feature of this firmware is continous RF channel performance monitoring. LoRa RF channel performance might change during the day, e.g. damp vs dry weather or a car parked in front of your digital meter in the basement of your apartment building. Both transmitter and receiver keep track of RF channel performance by exchanging CRC acknowledgments of transmitted meter telegrams. As such, the transmitter can determine how many transmitted meter telegrams have reached the receiver. If packet loss is more than 50%, a new RF handshake is initiated to settle on more reliable RF channel parameters. 
+
+Likewise, if the receiver has not received any P1 meter telegram for more than 15 minutes it reverts back to RF handshake mode. By doing so, both transmitter and receiver eventually revert back to handshake mode if communication is lost, allowing them to re-establish succesful communication.
+
+Additionally, if packet loss is below 15%, a new handshake is initiated to settle on settings providing higher throughput. This all happens automatically. 
 
 ## Receiver
 The receiver connects to your WiFi and pushes 
