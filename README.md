@@ -52,7 +52,7 @@ To connect the transmitting ESP32 to your digital meters' P1 port, you will need
 ### Compiling
 The code in **this** repository is meant for the _receiver_, meaning the ESP32 which will act as a base station, receiving P1 telegrams over LoRa and forwarding them over your home WiFi. 
 
-Compile and flash the code in this repository to the _transmitter_, the ESP32 connected to your digital meter.
+Compile and flash the code in [this repository](https://github.com/plan-d-io/P1-LoRa-transmitter/tree/main) on the _transmitter_, the ESP32 connected to your digital meter.
 
 Ensure the `networkNum`, `plaintextKey` and `networkID` variables are set to identical values on both transmitter or receiver, or else communication will fail.
 
