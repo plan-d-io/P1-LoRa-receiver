@@ -181,6 +181,7 @@ LoRa RF channel performance might change during the day, e.g. damp vs dry weathe
 Likewise, if the receiver has not received any P1 meter telegram for more than 15 minutes it reverts back to RF handshake mode. By doing so, both transmitter and receiver eventually revert back to handshake mode if communication is lost for longer periods, allowing them to re-establish succesful communication.
 
 ![image.png](https://raw.githubusercontent.com/wiki/plan-d-io/P1-LoRa-receiver/images/lorasf.PNG)
+
 _RF channel monitoring_
 
 Additionally, if packet loss is below 15%, a new handshake is initiated to settle on settings providing higher throughput. This all happens automatically. 
