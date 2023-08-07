@@ -156,6 +156,7 @@ Air time is dependent on the size of the payload (three-phase meters have a larg
   </tr>
 </table>
 
+_Indicative air time and update rates for different bandwidth settings_
 
 Each increment in SF or decrement in BW roughly halves the amount of LoRa airtime and, as such, doubles update rates (see table above). Symbol encoding is kept default on this firmware.
 
