@@ -67,6 +67,96 @@ LoRa operates in the unlicensed ISM radio spectrum. Anyone is free to use this s
 
 Air time is dependent on the size of the payload (three-phase meters have a larger payload than single-phase meters), symbol encoding and RF channel settings (bandwidth _BW_ and spreading factor _SF_). 
 
+<table>
+  <tr>
+   <td>SF</td>
+   <td>BW</td>
+   <td colspan="3">Single-phase telegram</td>
+   <td colspan="3">Three-phase telegram</td>
+  </tr>
+  <tr>
+    <td></td>
+    <td></td>
+    <td>Airtime (ms)</td>
+    <td>Telegrams/h</td>
+    <td>Time between telegrams (s)</td>
+    <td>Airtime (ms)</td>
+    <td>Telegrams/h</td>
+    <td>Time between telegrams (s)</td>
+  </tr>
+  <tr>
+    <td>12</td>
+    <td>125</td>
+    <td>2305</td>
+    <td>15,6</td>
+    <td>230,5</td>
+    <td>3723</td>
+    <td>9,6</td>
+    <td>372,3</td>
+  </tr>
+  <tr>
+    <td>12</td>
+    <td>250</td>
+    <td>1072</td>
+    <td>33,6</td>
+    <td>107,2</td>
+    <td>1731</td>
+    <td>20,8</td>
+    <td>173,2</td>
+  </tr>
+  <tr>
+    <td>11</td>
+    <td>250</td>
+    <td>578</td>
+    <td>62,3</td>
+    <td>57,8</td>
+    <td>934</td>
+    <td>38,6</td>
+    <td>93,4</td>
+  </tr>
+  <tr>
+    <td>10</td>
+    <td>250</td>
+    <td>311</td>
+    <td>115,8</td>
+    <td>31,1</td>
+    <td>502</td>
+    <td>71,7</td>
+    <td>50,2</td>
+  </tr>
+  <tr>
+    <td>9</td>
+    <td>250</td>
+    <td>167</td>
+    <td>215,6</td>
+    <td>16,7</td>
+    <td>270</td>
+    <td>133,4</td>
+    <td>27</td>
+  </tr>
+  <tr>
+    <td>8</td>
+    <td>250</td>
+    <td>90</td>
+    <td>400</td>
+    <td>9</td>
+    <td>145</td>
+    <td>247,6</td>
+    <td>14,5</td>
+  </tr>
+  <tr>
+    <td>8</td>
+    <td>250</td>
+    <td>45</td>
+    <td>800</td>
+    <td>4,5</td>
+    <td>70</td>
+    <td>500</td>
+    <td>7</td>
+  </tr>
+</table>
+
+
 Each increment in SF or decrement in BW roughly halves the amount of LoRa airtime and, as such, doubles update rates (see table above). Symbol encoding is kept default on this firmware.
 
 A lower BW (125 vs 250) might help with penetration of challenging RF environments (e.g. multiple solid walls), but also increases the chances of clock mismatch between transmitter and receiver. This can especially be a problem with cheaper LoRa modules, or transmitter/receiver modules from different manufacturers. By default, this firmware only uses BW 125 during the first RF handshake step, switching to BW 250 for all steps afterwards.
