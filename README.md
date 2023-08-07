@@ -7,6 +7,8 @@ Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiF
 ## Introduction
 This repo contains firmware for ESP32 microcontrollers equipped with Semtech SX1276/77/78/79 LoRa radios to transmit DSMR P1 telegrams from Dutch/Belgian energy meters over long ranges to a WiFi enabled receiver, which forwards the meter data to the local network (e.g. over MQTT). 
 
+![](https://raw.githubusercontent.com/wiki/plan-d-io/P1-LoRa/images/lorabridge.png)
+
 For this to work, you’ll need two ESP32s:
 -	One ESP32 to connect to your utility meter and transmit P1 telegrams over LoRa: the _transmitter_.
 -	Another ESP32 at your home, to receive the LoRa P1 telegrams and forward them over your home Wi-Fi connection: the _receiver_.
@@ -24,12 +26,12 @@ The code in this repo is tested and verified to work on LilyGO TTGO T3 LoRa32 86
 - Home Assistant integration
 
 ## Use case
-Most devices enabling real-time access to P1 meter data (“_dongles_”) use WiFi. Flats and condos, however, often have their utility meters beyond Wi-Fi access, e.g. in a basement or another shared space. This repo contains code to use LoRa to connect P1 utility meters to a base station connected to your home WiFi network. LoRa is a radio protocol designed to carry small amounts of data over long distances and/or challenging environments like multiple floors. _So it’s like the very long cat, except that there is no cat._
+Most devices enabling real-time access to P1 meter data (“_dongles_”) use WiFi. Flats and condos, however, often have their utility meters beyond Wi-Fi access, e.g. in a basement or another shared space. This repo contains code to use the [LoRa radio protocol](https://en.wikipedia.org/wiki/LoRa) to connect P1 utility meters to a base station connected to your home WiFi network. LoRa is a radio protocol designed to carry small amounts of data over long distances and/or challenging environments like multiple floors. _So it’s like the very long cat, except that there is no cat._
 
 Why roll your own base station, in stead of relying on a LoRaWAN, NB-IoT or other public networks?
 - Cost: no monthly charges whatsoever.
-- Update rate: most public networks limit airtime to 0.1%, meaning you can get, at most, one update every 15 min (if you are lucky and have an expensive data plan). This firmware gives you updates every ~30s to 6m.
-- Privacy: your meter data does not travel any third party network, nor is it processed by anyone else but yourself or the provider of your own choosing.
+- Update rate: most public networks limit airtime to 0.1%, meaning you can get, at most, one update every 15 min (if you are lucky and have an expensive data plan). This firmware gives you updates every ~10s to 6m.
+- Privacy: your meter data does not travel over any third party network, nor is it processed by anyone else but yourself or the provider of your own choosing.
 
 ## Installation
 ### Preparation
@@ -61,9 +63,10 @@ Ensure the `networkNum`, `plaintextKey` and `networkID` variables are set to ide
 - Once the handshake is concluded, the transmitter will start forwarding the P1 meter telegrams.
 - If you have provided valid MQTT settings in the receiver firmware, it will start forwarding P1 meter data over MQTT.
 - If you have provided valid Home Assistant settings in the receiver firmware, it will create a MQTT device in HA and update it with every received P1 telegram (note: you need to have an MQTT broker running).
+- To reiniate the handshake, e.g. if one of the devices has been offline, simply restart the receiver first, followed by the transmitter.
 
 ## About LoRa
-LoRa operates in the unlicensed ISM radio spectrum. Anyone is free to use this slice of spectrum as long as they adhere to a maximum use time, defined as the duty cycle limit. For EU 868MHz, the maximum duty cycle is 1%. So if there are 86400 seconds in a day, this means your device can transmit a total of 86400 x 1% = 864 seconds per day. This is called the _air time_.
+LoRa operates in the unlicensed [ISM radio spectrum](https://en.wikipedia.org/wiki/ISM_radio_band). Anyone is free to use this slice of spectrum as long as they adhere to a maximum use time, defined as the duty cycle limit. For EU 868MHz, the maximum duty cycle is 1%. So if there are 86400 seconds in a day, this means your device can transmit a total of 86400 x 1% = 864 seconds per day. This is called the _air time_.
 
 Air time is dependent on the size of the payload (three-phase meters have a larger payload than single-phase meters), symbol encoding and RF channel settings (bandwidth _BW_ and spreading factor _SF_). 
 
@@ -196,3 +199,6 @@ Note that LoRa uses [chirp spread spectrum](https://en.wikipedia.org/wiki/Chirp_
 
 #### Indoor receiver location
 To ensure reliable communication, the location of the receiver is even more important than the location of the transmitter. LoRa has the property of _light indoor reception_, meaning reception quality quickly fades (due to [destructive interference](https://en.wikipedia.org/wiki/Wave_interference)) as the receiver is placed more indoors. Therefore it is recommended to place the receiver as close as possible to a window facing the shortest (RF) path to the receiver.
+
+### Known issues
+- Gas and water meter values are currently not parsed
