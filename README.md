@@ -7,7 +7,7 @@ Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiF
 ## Introduction
 This repo contains firmware for ESP32 microcontrollers equipped with Semtech SX1276/77/78/79 LoRa radios to transmit DSMR P1 telegrams from Dutch/Belgian energy meters over long ranges to a WiFi enabled receiver, which forwards the meter data to the local network (e.g. over MQTT). 
 
-![](https://raw.githubusercontent.com/wiki/plan-d-io/P1-LoRa/images/lorabridge.png)
+![](https://raw.githubusercontent.com/wiki/plan-d-io/P1-LoRa-receiver/images/lorabridge.png)
 
 For this to work, you’ll need two ESP32s:
 -	One ESP32 to connect to your utility meter and transmit P1 telegrams over LoRa: the _transmitter_.
@@ -180,7 +180,7 @@ LoRa RF channel performance might change during the day, e.g. damp vs dry weathe
 
 Likewise, if the receiver has not received any P1 meter telegram for more than 15 minutes it reverts back to RF handshake mode. By doing so, both transmitter and receiver eventually revert back to handshake mode if communication is lost for longer periods, allowing them to re-establish succesful communication.
 
-![image.png](https://raw.githubusercontent.com/wiki/plan-d-io/P1-LoRa/images/lorasf.PNG)
+![image.png](https://raw.githubusercontent.com/wiki/plan-d-io/P1-LoRa-receiver/images/lorasf.PNG)
 _RF channel monitoring_
 
 Additionally, if packet loss is below 15%, a new handshake is initiated to settle on settings providing higher throughput. This all happens automatically. 
