@@ -203,3 +203,4 @@ To ensure reliable communication, the location of the receiver is even more impo
 
 ### Known issues
 - Gas and water meter values are currently not parsed
+- Packet loss is not calculated properly
