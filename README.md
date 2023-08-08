@@ -35,7 +35,7 @@ Why roll your own base station, in stead of relying on a LoRaWAN, NB-IoT or othe
 
 ## Installation
 ### Preparation
-This firmware is meant for compiling in the Arduino 1.x IDE use the ESP32 Arduino core 2.0.7 or later.
+This firmware is meant for compiling in the Arduino 1.x IDE using the ESP32 Arduino core 2.0.7 or later.
 
 You will need some additional libraries.
 * In Arduino IDE Go to _Sketch_>_Include Library_>_Manage Libraries_. Search for and install the following libraries
