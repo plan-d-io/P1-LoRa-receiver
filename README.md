@@ -5,7 +5,7 @@ Send P1 meter telegrams from DSMR digital meters over long range (LoRa) to a WiF
 > \-  Albert Einstein (attributed)
 
 ## Introduction
-This repo contains firmware for ESP32 microcontrollers equipped with Semtech SX1276/77/78/79 LoRa radios to transmit DSMR P1 telegrams from Dutch/Belgian energy meters over long ranges to a WiFi enabled receiver, which forwards the meter data to the local network (e.g. over MQTT). 
+This repo contains firmware for ESP32 microcontrollers equipped with Semtech SX1276/77/78/79 LoRa radios to transmit DSMR P1 telegrams from Dutch/Belgian energy meters over long ranges to a WiFi enabled receiver, which forwards the meter data to the local WiFi network (e.g. over MQTT). 
 
 ![](https://raw.githubusercontent.com/wiki/plan-d-io/P1-LoRa-receiver/images/lorabridge.png)
 
