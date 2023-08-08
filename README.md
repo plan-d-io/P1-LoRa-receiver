@@ -49,6 +49,10 @@ By default, the code in this repo is written for LilyGO TTGO T3 LoRa32 OLED boar
 ### Hardware
 To connect the transmitting ESP32 to your digital meters' P1 port, you will need a level shifter to transform the 5V P1 signal to an 3.3 inverted signal which can be fed to the ESP32. You can find a [suitable schematic here](https://github.com/plan-d-io/P1-dongle/wiki/Build:-DIY-instructions#building-from-scratch). Note that this firmware uses ESP32 pins 12 and 13 as RX and TX.
 
+![](https://raw.githubusercontent.com/wiki/plan-d-io/P1-LoRa-receiver/images/lorareal.PNG)
+
+_Prototype installation_
+
 ### Compiling
 The code in **this** repository is meant for the _receiver_, meaning the ESP32 which will act as a base station, receiving P1 telegrams over LoRa and forwarding them over your home WiFi. 
 
