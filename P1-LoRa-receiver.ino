@@ -54,30 +54,30 @@ static const unsigned long loraUpdate[][7] ={
 
 /*Template of meter telegram*/
 float meterData[] = {
-  123456.789, //totConT1
-  123456.789, //totConT2
-  456789.123, //totInT1
-  321987.654, //totInT2
-  54.321,     //TotpowCon
-  0,          //TotpowIn
-  87654.321,  //avgDem
-  12345.678,  //maxDemM
-  543.21,     //volt1
-  543.21,     //current1
-  87654.321,  //totGasCon
-  12345.678,  //totWatCon
-  54.321,     //powCon1
-  0,          //powCon2
-  0,          //powCon3
-  54.321,     //powIn1
-  0,          //powIn2
-  54.321,     //powIn3
-  123.45,     //volt2
-  234.36,     //volt3
-  0,          //current2
-  543.21,      //current3
+  999999.999, //totConT1
+  999999.999, //totConT2
+  999999.999, //totInT1
+  999999.999, //totInT2
+  99.999,     //TotpowCon
+  99.999,     //TotpowIn
+  999999.999, //avgDem
+  999999.999, //maxDemM
+  999.99,     //volt1
+  999.99,     //current1
+  999999.999, //totGasCon
+  999999.999, //totWatCon
+  99.999,     //powCon1
+  999999.999, //powCon2
+  999999.999, //powCon3
+  99.999,     //powIn1
+  999999.999, //powIn2
+  999999.999  //powIn3
+  999.99,     //volt2
+  999.99,     //volt3
+  999.99,     //current2
+  999.99,     //current3
   0,          //pad
-  0           //padd
+  0           //pad
 };
 
 struct keyConfig {
@@ -189,8 +189,8 @@ void loop() {
       }
     }
     /* When receiver, in telegram receive mode, has not received a meter telegram for
-     * more than 15 minutes, revert back into sync mode */
-    if(telegramTimeOut > 900000) syncMode = 0; 
+     * more than 5 minutes, revert back into sync mode */
+    if(telegramTimeOut > 300000) syncMode = 0; 
   }
   onReceive(LoRa.parsePacket());
   mqttclient.loop();
