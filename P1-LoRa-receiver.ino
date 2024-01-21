@@ -1,98 +1,49 @@
 #include "boards.h"
+#include "LoRaConfig.h"
 #include <LoRa.h>
 #include "mbedtls/aes.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/md.h"
 #include <esp32/rom/crc.h>
-#include <elapsedMillis.h>
+#include "rom/rtc.h"
+#include <esp_int_wdt.h>
+#include <esp_task_wdt.h>
+#include <LittleFS.h>
+#define SPIFFS LittleFS
 #include <WiFi.h>
-#include "time.h"
-#include "ArduinoJson.h"
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <DNSServer.h>
+#include <ESPmDNS.h>
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include "ESPAsyncWebServer.h"
+#include <Preferences.h>
 #include <PubSubClient.h>
+#include <time.h>
+#include <Update.h>
+#include "ArduinoJson.h"
+#include <elapsedMillis.h>
+#include "UUID.h"
+#include "configStore.h"
+#include "ledControl.h"
+#include "externalIntegrations.h"
+#include "WebRequestHandler.h"
+#include "webHelp.h"
+#define TRIGGER 25 //Pin to trigger meter telegram request
 
 /*Keep or change these three settings, but make sure the are identical on both transmitter and receiver!*/
 uint8_t networkNum = 127;                 //Must be unique for every transmitter-receiver pair
 char plaintextKey[] = "abcdefghijklmnop"; //The key used to encrypt/decrypt the meter telegram
 char networkID[] = "myLoraNetwork";       //Used to generate the initialisation vector for the AES encryption algorithm
 
-/*WiFi settings*/
-bool _wifi_en = true;
-String _wifi_ssid = "YOURWIFISSID";
-String _wifi_password = "YOURWIFIPASSWORD";
-
-/*MQTT settings*/
-String _mqtt_host = "";                   //ip-address of your mqtt broker
-unsigned int _mqtt_port = 1883;
-String _mqtt_id = "LoRa-P1";
-bool _mqtt_auth = false;
-String _mqtt_user = "mqtt username";
-String _mqtt_pass = "mqtt password";
-String _mqtt_prefix = "data/devices/utility_meter/";
-String haDeviceName = "Utility meter";
-bool _mqtt_en = false;                    //set to true to enable mqtt client
-bool _ha_en = false;                      //set to true to enable Home Assistant integration
-bool debugInfo = true;
-
-/*SF, BW and  wait times used to sync transmitter and receiver
- Needs to be indentical on both transmitter and receiver*/
-static const byte loraConfig[][4] ={
-  {12, 125, 8, 38},
-  {12, 250, 3, 20},
-  {11, 250, 2, 10},
-  {10, 250, 2, 8},
-  {9, 250, 2, 8},
-  {8, 250, 2, 8},
-  {7, 250, 1, 8}
-};
-
-/*ms between updates to keep in line with 1% LoRa duty cycle, for single and three phase meter telegrams
- Needs to be indentical on both transmitter and receiver*/
-static const unsigned long loraUpdate[][7] ={
-  {230474, 107207, 57803, 31099, 16700, 9000, 4500},
-  {372346, 173169, 93369, 50238, 26977, 14538, 7000}
-  };
-
-/*Template of meter telegram*/
-float meterData[] = {
-  999999.999, //totConT1
-  999999.999, //totConT2
-  999999.999, //totInT1
-  999999.999, //totInT2
-  99.999,     //TotpowCon
-  99.999,     //TotpowIn
-  999999.999, //avgDem
-  999999.999, //maxDemM
-  999.99,     //volt1
-  999.99,     //current1
-  999999.999, //totGasCon
-  999999.999, //totWatCon
-  99.999,     //powCon1
-  999999.999, //powCon2
-  999999.999, //powCon3
-  99.999,     //powIn1
-  999999.999, //powIn2
-  999999.999  //powIn3
-  999.99,     //volt2
-  999.99,     //volt3
-  999.99,     //current2
-  999.99,     //current3
-  0,          //pad
-  0           //pad
-};
-
-struct keyConfig {
-  String dsmrKey;
-  float maxVal;
-  String deviceType;
-  String  keyName;
-  String  keyTopic;
-  bool retain;
-};
 
 /*LoRa runtime vars*/
-elapsedMillis runLoop, waitForSync, waitForSend, telegramTimeOut, delayCRC, mqttConnectLoop;
+elapsedMillis runLoop, waitForSync, waitForSend, telegramTimeOut, delayCRC;
+bool packetRSSIFound, packetSNRFound, packetSFFound, packetLossFound;
 unsigned long waitForSyncVal, waitForSendVal;
 int syncMode, syncTry, packetLoss;
+float packetSNR, packetSF, packetLossf, packetRSSI;
 int syncCount = 0;
 byte setSF, setBW;
 byte telegramCounter, telegramAckCounter;
@@ -103,43 +54,295 @@ unsigned int aesBufferSize = 96;
 uint32_t romCRC;
 unsigned char key[32];
 unsigned char iv[16], iv2[16];
-/*WiFi & MQTT runtime vars*/
+
+unsigned int fw_ver = 217;
+
+//General global vars
+Preferences preferences;
+AsyncWebServer server(80);
+DNSServer dnsServer;
+uint8_t* certData = nullptr; 
 WiFiClient wificlient;
 PubSubClient mqttclient(wificlient);
-bool haDiscovered, wifiError, mqttWasConnected, mqttPushed;
-unsigned int mqttPushCount, mqttPushFails, reconncount;
+WiFiClientSecure *client = new WiFiClientSecure;
+PubSubClient mqttclientSecure(*client);
+HTTPClient https;
+UUID uuid;
+bool clientSecureBusy, mqttPaused, mqttWasPaused, resetWifi, factoryReset, updateAvailable;
+bool wifiError, mqttWasConnected, wifiSave, wifiScan, debugInfo, timeconfigured, timeSet, spiffsMounted,rebootInit;
+bool bundleLoaded = true;
+bool haDiscovered = false;
+String configBuffer, resetReason, infoMsg, ssidList;
+char apSSID[] = "P1000000";
+unsigned int mqttPushCount, mqttPushFails, onlineVersion, fw_new;
+unsigned int secureClientError = 0;
+time_t meterTimestamp;
+//Global timing vars
+elapsedMillis sinceConnCheck, sinceUpdateCheck, sinceClockCheck, sinceLastUpload, sinceDebugUpload, sinceRebootCheck, sinceMeterCheck, sinceWifiCheck, sinceTelegramRequest;
+//General housekeeping vars
+unsigned int reconncount, remotehostcount, telegramCount, telegramAction;
+int wifiRSSI;
+float freeHeap, minFreeHeap, maxAllocHeap;
+byte mac[6];
+uint8_t prevButtonState = false;
+/*Debug*/
+bool serialDebug = true;
+bool telegramDebug = false;
+bool mqttDebug = false;
+bool httpDebug = false;
+bool extendedTelegramDebug = false;
 
-void setup() {
+void setup(){
   initBoard();
   // When the power is turned on, a delay is required.
   delay(1500);
   setLCD(0, 0, 0);
   Serial.begin(115200);
   Serial.println("LoRa P1 Receiver");
-  /*Start WiFi*/
-  if(_wifi_en){
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(_wifi_ssid.c_str(), _wifi_password.c_str());
-    WiFi.setHostname("p1dongle");
-    elapsedMillis startAttemptTime;
-    Serial.println("Attempting connection to WiFi network " + _wifi_ssid);
-    while (WiFi.status() != WL_CONNECTED && startAttemptTime < 20000) {
-      delay(200);
-      Serial.print(".");
+  pinMode(TRIGGER, OUTPUT);
+  unitState = -1;
+  Serial.begin(115200);
+  delay(500);
+  getHostname();
+  Serial.println();
+  syslog("Digital meter dongle booting", 0);
+  restoreConfig();
+  _wifi_STA = true;
+  _wifi_ssid = "Aether";
+  _wifi_password = "RaidillondelEauRouge0x03";
+  _update_autoCheck = false;
+  _update_auto = false;
+  initSPIFFS();
+  externalIntegrationsBootstrap();
+  if(_trigger_type == 0) digitalWrite(TRIGGER, HIGH);
+  else digitalWrite(TRIGGER, LOW);
+  syslog("Digital meter dongle " + String(apSSID) +" V" + String(fw_ver/100.0) + " by plan-d.io", 1);
+  if(_dev_fleet) syslog("Using experimental (development) firmware", 2); //change this to one variable, but keep legacy compatibility intact
+  if(_alpha_fleet) syslog("Using pre-release (alpha) firmware", 0);
+  if(_v2_fleet) syslog("Using V2.0 firmware", 0);
+  syslog("Checking if internal clock is set", 0);
+  printLocalTime(true);
+  _bootcount = _bootcount + 1;
+  syslog("Boot #" + String(_bootcount), 1);
+  saveBoots();
+  get_reset_reason(rtc_get_reset_reason(0));
+  syslog("Last reset reason (hardware): " + resetReason, 1);
+  syslog("Last reset reason (firmware): " + _last_reset, 1);
+  debugInfo = true;
+  initWifi();
+  server.addHandler(new WebRequestHandler());
+  server.begin();
+  configBuffer = returnConfig();
+  String availabilityTopic = _mqtt_prefix.substring(0, _mqtt_prefix.length()-1);
+  initLoRa();
+  Serial.println("Done");
+}
+
+void loop(){
+  blinkLed();
+  if(wifiScan) scanWifi();
+  if(sinceRebootCheck > 2000){
+    if(rebootInit){
+      forcedReset();
     }
-    Serial.println("");
-    if(WiFi.status() == WL_CONNECTED){
-      Serial.println("Connected to the WiFi network " + _wifi_ssid);
-      if(_mqtt_en){
-        setupMqtt();
-        connectMqtt();
-      }
-    }
-    else{
-      Serial.println("Could not connect to the WiFi network");
-      wifiError = true;
+    sinceRebootCheck = 0;
+  }
+  if(_trigger_type == 0){
+    /*Continous triggering of meter telegrams*/
+    if(sinceMeterCheck > 180000){
+      if(!meterError) syslog("Meter disconnected", 2);
+      meterError = true;
+      if(_wifi_STA && unitState < 7) unitState = 6;
+      else if(!_wifi_STA && unitState < 3) unitState = 2;
+      sinceMeterCheck = 0;
     }
   }
+  else if(_trigger_type == 1){
+    /*On demand triggering of meter telegram*/
+    if(sinceTelegramRequest >= _trigger_interval *1000){
+      digitalWrite(TRIGGER, HIGH);
+      sinceTelegramRequest = 0;
+    }
+    if(sinceMeterCheck > (_trigger_interval *1000) + 30000){
+      syslog("Meter disconnected", 2);
+      meterError = true;
+      if(_wifi_STA && unitState < 7) unitState = 6;
+      else if(!_wifi_STA && unitState < 3) unitState = 2;
+      sinceMeterCheck = 0;
+    }
+  }
+  if(!_wifi_STA){
+    /*If dongle is in access point mode*/
+    dnsServer.processNextRequest();
+    if(sinceWifiCheck >= 600000){
+      /*If dongle is in AP mode, check every once in a while if the configured wifi SSID can't be detected
+       * If so, reboot so the dongle starts up again in connected STA mode. */
+      if(scanWifi()){
+        saveResetReason("Found saved WiFi SSID, rebooting to reconnect");
+        if(saveConfig()){
+          syslog("Found saved WiFi SSID, rebooting to reconnect", 1);
+          setReboot();
+        }
+      }
+      sinceWifiCheck = 0;
+    }
+    if(sinceClockCheck >= 600000){
+      timeSet = false;
+      sinceClockCheck = 0;
+    }
+  }
+  else{
+    /*If dongle is connected to wifi*/
+    if(!bundleLoaded) restoreSPIFFS();
+    if(_mqtt_en){
+      if(_mqtt_tls){
+        mqttclientSecure.loop();
+      }
+      else{
+        mqttclient.loop();
+      }
+    }
+    if(lastEIDcheck >= EIDcheckInterval){
+      eidHello();
+    }
+    if(lastEIDupload > EIDuploadInterval){
+      eidUpload();
+    }
+    if(_update_autoCheck && sinceUpdateCheck >= 86400000){
+      updateAvailable = checkUpdate();
+      if(updateAvailable) startUpdate();
+      sinceUpdateCheck = 0;
+    }
+    if(sinceClockCheck >= 3600){
+      if(!timeconfigured) timeSet = false; //if timeConfigured = true, the NTP serivce takes care of reqular clock syncing
+      sinceClockCheck = 0;
+    }
+    if(sinceConnCheck >= 60000){
+      if(_ha_en && debugInfo) hadebugDevice(false);
+      checkConnection();
+      sinceConnCheck = 0;
+    }
+    if(sinceDebugUpload >= 300000){
+      getHeapDebug();
+      sinceDebugUpload = 0;
+    }
+    /*If no remote hosts can be reached anymore, try a reboot for up to four times*/
+    if(reconncount > 15 || remotehostcount > 60 || secureClientError > 4){
+      _rebootSecure++;
+      if(_rebootSecure < 4){
+        saveResetReason("Rebooting to try fix connections");
+        if(saveConfig()){
+          syslog("Rebooting to try fix connections", 2);
+          setReboot();
+        }
+        reconncount = 0;
+      }
+      else{
+        /*After four reboots, increase time between reboots drastically*/
+        if(reconncount > 150 || remotehostcount > 600 || secureClientError > 40){
+          _rebootSecure++;
+          saveResetReason("Rebooting to try fix connections");
+          if(saveConfig()){
+            syslog("Rebooting to try fix connections", 2);
+            setReboot();
+          }
+          reconncount = 0;
+        }
+      }
+    }
+  }
+
+  if(syncMode >= 0) syncLoop();
+  else {
+    setLCD(14, 0, 0);
+    if(sendCRC) {
+      if(delayCRC > 200){
+        sendCRCAck();
+        sendCRC = false;
+      }
+    }
+    /* When receiver, in telegram receive mode, has not received a meter telegram for
+     * more than 5 minutes, revert back into sync mode */
+    if(telegramTimeOut > 300000){
+      syncMode = 0;
+      setSF = 12;
+      setBW = 125;
+      Serial.println("Communication timeout, restarting sync");
+      LoRa.setSpreadingFactor(setSF);
+      LoRa.setSignalBandwidth(setBW*1000);
+    }
+  }
+  onReceive(LoRa.parsePacket());
+
+  /*
+  mqttclient.loop();
+  if(_mqtt_en){
+    if(mqttConnectLoop > 300000){
+      connectMqtt();
+      mqttConnectLoop = 0;
+    }   
+  }
+  
+  if(HWSERIAL.available() > 0) {
+    /*Read the received meter telegram. A telegram ends on the '!' character, followed by a 4-digit CRC16 value
+    String telegram=HWSERIAL.readStringUntil('!');
+    telegram = telegram + '\n';
+    String crc =  HWSERIAL.readStringUntil('\n');
+    if(_trigger_type == 1){
+      digitalWrite(TRIGGER, LOW);
+      sinceTelegramRequest = 0;
+    }
+    processMeterTelegram(telegram, crc);
+  }*/
+}
+
+void onReceive(int packetSize) {
+  if (packetSize == 0)
+      return;
+  // read packet header bytes:
+  byte inNetworkNum = LoRa.read();
+  byte inMessageType = LoRa.read();
+  byte inMessageCounter = LoRa.read();
+  byte inPayloadSize = LoRa.read();
+  packetRSSIFound = true;
+  packetSNRFound = true;
+  packetSFFound = true;
+  packetSF = setSF*1.0;
+  Serial.print("SF: ");
+  Serial.println(setSF);
+  int rssiInt = LoRa.packetRssi();
+  packetRSSI = rssiInt*1.0;
+  Serial.print("RSSI: ");
+  Serial.println(rssiInt);
+  packetSNR = LoRa.packetSnr();
+  Serial.print("Receiving LoRa message, meant for network ID ");
+  Serial.print(inNetworkNum);
+  Serial.print(", message type ");
+  Serial.print(inMessageType);
+  Serial.print(" witch message count ");
+  Serial.print(inMessageCounter);
+  Serial.print(", length of ");
+  Serial.print(inPayloadSize);
+  Serial.println(" bytes");
+  if(inNetworkNum != networkNum) {
+    Serial.println("Wrong network ID");
+    return;
+  }
+  byte incoming[inPayloadSize];
+  int i = 0;
+  while(i<inPayloadSize) {
+    incoming[i]= LoRa.read();
+    i++;
+  }
+  if(inMessageType == 0 || inMessageType == 1 || inMessageType == 3 || inMessageType == 31 || inMessageType == 32 || inMessageType == 33 || inMessageType == 128){
+    if(inPayloadSize == 48 || inPayloadSize == 96) processTelegram(inMessageType, inMessageCounter, incoming);
+  }
+  else if(inMessageType == 170 || inMessageType == 178 || inMessageType == 85 || inMessageType == 93){
+    processSync(inMessageType, inMessageCounter, incoming);
+  }
+}
+
+void initLoRa(){
   /*Start LoRa radio*/
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DIO0_PIN);
   if (!LoRa.begin(LoRa_frequency)) {
@@ -176,63 +379,4 @@ void setup() {
   setBW = 125;
   syncMode = 0;
   waitForSync = 300000;
-}
-
-void loop() {
-  if(syncMode >= 0) syncLoop();
-  else {
-    setLCD(14, 0, 0);
-    if(sendCRC) {
-      if(delayCRC > 200){
-        sendCRCAck();
-        sendCRC = false;
-      }
-    }
-    /* When receiver, in telegram receive mode, has not received a meter telegram for
-     * more than 5 minutes, revert back into sync mode */
-    if(telegramTimeOut > 300000) syncMode = 0; 
-  }
-  onReceive(LoRa.parsePacket());
-  mqttclient.loop();
-  if(_mqtt_en){
-    if(mqttConnectLoop > 300000){
-      connectMqtt();
-      mqttConnectLoop = 0;
-    }   
-  }
-}
-
-void onReceive(int packetSize) {
-  if (packetSize == 0)
-      return;
-  // read packet header bytes:
-  byte inNetworkNum = LoRa.read();
-  byte inMessageType = LoRa.read();
-  byte inMessageCounter = LoRa.read();
-  byte inPayloadSize = LoRa.read();
-  Serial.print("Receiving LoRa message, meant for network ID ");
-  Serial.print(inNetworkNum);
-  Serial.print(", message type ");
-  Serial.print(inMessageType);
-  Serial.print(" witch message count ");
-  Serial.print(inMessageCounter);
-  Serial.print(", length of ");
-  Serial.print(inPayloadSize);
-  Serial.println(" bytes");
-  if(inNetworkNum != networkNum) {
-    Serial.println("Wrong network ID");
-    return;
-  }
-  byte incoming[inPayloadSize];
-  int i = 0;
-  while(i<inPayloadSize) {
-    incoming[i]= LoRa.read();
-    i++;
-  }
-  if(inMessageType == 0 || inMessageType == 1 || inMessageType == 3 || inMessageType == 31 || inMessageType == 32 || inMessageType == 33 || inMessageType == 128){
-    if(inPayloadSize == 48 || inPayloadSize == 96) processTelegram(inMessageType, inMessageCounter, incoming);
-  }
-  else if(inMessageType == 170 || inMessageType == 178 || inMessageType == 85 || inMessageType == 93){
-    processSync(inMessageType, inMessageCounter, incoming);
-  }
 }

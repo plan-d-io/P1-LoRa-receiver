@@ -141,7 +141,23 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
       romCRC = (~crc32_le((uint32_t)~(0xffffffff), (const uint8_t*)plainText, 8))^0xffffffFF;
       telegramCounter++;
       telegramTimeOut = 0;
-      if(inMsgCounter > 0) packetLoss = (((inMsgCounter-telegramCounter)*100)/inMsgCounter);
+      if(inMsgType > 0){
+        Serial.print("Message counter: ");
+        Serial.println(inMsgCounter);
+        Serial.print("Received counter: ");
+        Serial.println(telegramCounter);
+        if(inMsgCounter < telegramCounter){
+          telegramCounter = inMsgCounter;
+          Serial.println("Reached end of telegram count cycle, resetting");
+        }
+        int plTemp = (((inMsgCounter-telegramCounter)*100)/inMsgCounter);
+        if(plTemp >= -0 && plTemp < 101) {
+          packetLoss = plTemp;
+          packetLossf = plTemp*1.0;
+        }
+        else packetLossf = 0.0;
+        packetLossFound = true;
+      }
       /* When replying too soon after a receive, the transmitter sometimes misses the reply (especially at low SF and close proximity)
        * Solved this for telegram receiver mode, but should probably add an additional state in the sync mode loop (to avoid using delay())
        */
@@ -153,7 +169,9 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
         if(inMsgType > 0){
           sendCRC = true;
           delayCRC = 0;
-          pushMqtt();
+          //pushMqtt();
+          processMeterTelegram();
+          meterError = false;
         }
       }
     }
