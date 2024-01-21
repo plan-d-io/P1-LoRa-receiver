@@ -87,6 +87,20 @@ void sendSyncAck(bool startSync){
   telegramCounter = 0;
 }
 
+void sendSyncReq(){
+  syslog("Sending restart sync request", 1);
+  unsigned long tempMillis = millis();
+  LoRa.beginPacket();
+  LoRa.write(networkNum);
+  LoRa.write(231); //payload type
+  LoRa.write(telegramCounter);
+  LoRa.write(0); //payload size
+  LoRa.endPacket();
+  Serial.print("Transmission took ");
+  Serial.print(millis() - tempMillis);
+  Serial.println(" ms");
+}
+
 void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
     if(inMsgType == 0 || inMsgType == 1 || inMsgType == 3 || inMsgType == 31 || inMsgType == 32 || inMsgType == 33){
       if(inMsgType == 0) Serial.println("Message is calibration telegram");
@@ -147,16 +161,22 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
         Serial.print("Received counter: ");
         Serial.println(telegramCounter);
         if(inMsgCounter < telegramCounter){
-          telegramCounter = inMsgCounter;
           Serial.println("Reached end of telegram count cycle, resetting");
+          if(setSF >= 9 && packetLoss < 26 && telegramCounter > 2){
+            syslog("RF channel good, requesting resync for better performance", 1);
+            sendSyncReq();
+          }
+          telegramCounter = inMsgCounter;
         }
-        int plTemp = (((inMsgCounter-telegramCounter)*100)/inMsgCounter);
-        if(plTemp >= -0 && plTemp < 101) {
-          packetLoss = plTemp;
-          packetLossf = plTemp*1.0;
+        if(inMsgCounter > 0){
+          int plTemp = (((inMsgCounter-telegramCounter)*100)/inMsgCounter);
+          if(plTemp >= -0 && plTemp < 101) {
+            packetLoss = plTemp;
+            packetLossf = plTemp*1.0;
+          }
+          else packetLossf = 0.0;
+          packetLossFound = true;
         }
-        else packetLossf = 0.0;
-        packetLossFound = true;
       }
       /* When replying too soon after a receive, the transmitter sometimes misses the reply (especially at low SF and close proximity)
        * Solved this for telegram receiver mode, but should probably add an additional state in the sync mode loop (to avoid using delay())
@@ -248,9 +268,10 @@ void syncLoop(){
   }
   else if(syncMode == 9){
     setLCD(16, 0, 0);
-    Serial.println("Setting SF and BW");
+    //Serial.println("Setting SF and BW");
     LoRa.setSpreadingFactor(setSF);
     LoRa.setSignalBandwidth(setBW*1000);
+    syslog("Setting SF and BW to " + String(setSF) + " " + String(setBW), 1);
     telegramCounter = 0;
     syncMode = -1;
   }

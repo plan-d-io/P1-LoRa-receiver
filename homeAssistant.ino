@@ -256,10 +256,18 @@ void hadebugDevice(bool eraseMeter){
     else if(i == 10){
       chanName = String(apSSID) + "_reboot";
       doc["name"] = "Reboot";
-      doc["payload_on"] = "{\"value\": \"true\"}";
-      doc["payload_off"] = "{\"value\": \"false\"}";
-      doc["command_topic"] = "set/devices/" + _ha_device;
       doc["state_topic"] = "sys/devices/" + String(apSSID) + "/reboot";
+      doc["payload_on"] = "{\"value\": \"on\"}";
+      doc["payload_off"] = "{\"value\": \"off\"}";
+      doc["state_on"] = "on";
+      doc["state_off"] = "off";
+      doc["value_template"] = "{{ value_json.value }}";
+      String tempTopic = _mqtt_prefix.substring(0, _mqtt_prefix.length()-1);
+      tempTopic += "/set/reboot";
+      tempTopic.replace(" ", "_");
+      tempTopic.toLowerCase();
+      doc["command_topic"] = tempTopic;
+      doc["icon"] = "mdi:restart";
     }
     doc["unique_id"] = chanName;
     doc["object_id"] = chanName;
@@ -300,5 +308,5 @@ void hadebugDevice(bool eraseMeter){
     }
     if(mqttPushCount < 4) delay(100);
   }
-  pubMqtt("sys/devices/" + String(apSSID) + "/reboot", "{\"value\": \"false\"}", true);
+   pubMqtt("sys/devices/" + String(apSSID) + "/reboot", "{\"value\": \"off\"}", false);
 }

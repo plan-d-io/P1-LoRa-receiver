@@ -267,33 +267,12 @@ void loop(){
       syncMode = 0;
       setSF = 12;
       setBW = 125;
-      Serial.println("Communication timeout, restarting sync");
+      syslog("Communication timeout, restarting sync", 3);
       LoRa.setSpreadingFactor(setSF);
       LoRa.setSignalBandwidth(setBW*1000);
     }
   }
   onReceive(LoRa.parsePacket());
-
-  /*
-  mqttclient.loop();
-  if(_mqtt_en){
-    if(mqttConnectLoop > 300000){
-      connectMqtt();
-      mqttConnectLoop = 0;
-    }   
-  }
-  
-  if(HWSERIAL.available() > 0) {
-    /*Read the received meter telegram. A telegram ends on the '!' character, followed by a 4-digit CRC16 value
-    String telegram=HWSERIAL.readStringUntil('!');
-    telegram = telegram + '\n';
-    String crc =  HWSERIAL.readStringUntil('\n');
-    if(_trigger_type == 1){
-      digitalWrite(TRIGGER, LOW);
-      sinceTelegramRequest = 0;
-    }
-    processMeterTelegram(telegram, crc);
-  }*/
 }
 
 void onReceive(int packetSize) {
@@ -325,7 +304,7 @@ void onReceive(int packetSize) {
   Serial.print(inPayloadSize);
   Serial.println(" bytes");
   if(inNetworkNum != networkNum) {
-    Serial.println("Wrong network ID");
+    syslog("Received message with wrong network ID " + inNetworkNum, 2);
     return;
   }
   byte incoming[inPayloadSize];
@@ -339,6 +318,14 @@ void onReceive(int packetSize) {
   }
   else if(inMessageType == 170 || inMessageType == 178 || inMessageType == 85 || inMessageType == 93){
     processSync(inMessageType, inMessageCounter, incoming);
+  }
+  else if(inMessageType == 24){
+    syncMode = 0;
+    setSF = 12;
+    setBW = 125;
+    syslog("Received ACK for sync restart request, restarting sync", 2);
+    LoRa.setSpreadingFactor(setSF);
+    LoRa.setSignalBandwidth(setBW*1000);
   }
 }
 
