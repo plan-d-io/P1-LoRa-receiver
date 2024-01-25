@@ -11,13 +11,7 @@ void processSync(byte inMsgType, byte inMsgCounter, byte msg[]){
           setSF = msg[1];
           setBW = msg[2];
           waitForSyncVal = msg[3]*1000;
-          Serial.print("Received sync signal to set SF to ");
-          Serial.print(setSF);
-          Serial.print(", BW to ");
-          Serial.print(setBW);
-          Serial.print(", and timer to ");
-          Serial.print(waitForSyncVal/1000);
-          Serial.println(" seconds");
+          syslog("Received sync signal to set SF" + String(setSF) + " BW" + String(setBW) + ", and timer to " + String(waitForSyncVal/1000) + " seconds", 1);
           waitForSync = 0;
           telegramCounter++;
           syncMode = 4;
@@ -34,11 +28,7 @@ void processSync(byte inMsgType, byte inMsgCounter, byte msg[]){
             setSF = loraConfig[syncCount][0];
             setBW = loraConfig[syncCount][1];
             waitForSync = 0;
-            Serial.print("Received stop sync signal, setting SF to ");
-            Serial.print(setSF);
-            Serial.print(", BW to ");
-            Serial.print(setBW);
-            Serial.println(", and stopping sync procedure");
+            syslog("Received stop sync signal, setting SF" + String(setSF) + " BW" + String(setBW) + ", and stopping sync procedure", 1);
             sendSyncAck(false);
             telegramCounter = 0;
             syncMode = 9;
@@ -189,7 +179,6 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
         if(inMsgType > 0){
           sendCRC = true;
           delayCRC = 0;
-          //pushMqtt();
           processMeterTelegram();
           meterError = false;
         }
@@ -247,10 +236,7 @@ void syncLoop(){
       setBW = loraConfig[syncCount][1];
       waitForSendVal = loraConfig[syncCount][2]*1000;
       waitForSyncVal = loraUpdate[0][syncCount]*2; //the transmitter has probably already stopped syncing, so wait if we can see meter telegrams being sent
-      Serial.print("Reverting back to SF");
-      Serial.print(setSF);
-      Serial.print(" BW");
-      Serial.println(setBW);
+      syslog("Sync timeout, reverting back to SF" + String(setSF) + "BW" + String(setBW), 3);
       LoRa.setSpreadingFactor(setSF);
       LoRa.setSignalBandwidth(setBW*1000);
     }
@@ -271,6 +257,7 @@ void syncLoop(){
     //Serial.println("Setting SF and BW");
     LoRa.setSpreadingFactor(setSF);
     LoRa.setSignalBandwidth(setBW*1000);
+    syslog("Ending sync procedure", 1);
     syslog("Setting SF and BW to " + String(setSF) + " " + String(setBW), 1);
     telegramCounter = 0;
     syncMode = -1;

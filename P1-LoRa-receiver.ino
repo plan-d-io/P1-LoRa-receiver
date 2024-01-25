@@ -267,7 +267,7 @@ void loop(){
       syncMode = 0;
       setSF = 12;
       setBW = 125;
-      syslog("Communication timeout, restarting sync", 3);
+      syslog("Communication timeout, restarting sync without request", 3);
       LoRa.setSpreadingFactor(setSF);
       LoRa.setSignalBandwidth(setBW*1000);
     }

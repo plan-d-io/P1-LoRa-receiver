@@ -75,7 +75,6 @@ static const keyConfig dsmrKeys[] PROGMEM = {
     { "1-0:1.8.2", &totConT2, &dummyInt, &dummyString, 2, "energy", "Total consumption T2",  "",  false, &totConT2Found},
     { "1-0:2.8.1", &totInT1, &dummyInt, &dummyString, 2, "energy", "Total injection T1",  "",  false, &totInT1Found},
     { "1-0:2.8.2", &totInT2, &dummyInt, &dummyString, 2, "energy", "Total injection T2",  "",  false, &totInT2Found},
-    { "0-0:96.14.0", &dummyFloat, &actTarrif, &dummyString, 5, "", "Active tariff period",  "",  false, &actTarrifFound},
     { "1-0:1.7.0", &powCon, &dummyInt, &dummyString, 2, "power", "Active power consumption",  "",  false, &powConFound},
     { "1-0:2.7.0", &powIn, &dummyInt, &dummyString, 2, "power", "Active power injection",  "",  false, &powInFound},
     { "1-0:1.4.0", &avgDem, &dummyInt, &dummyString, 2,"power", "Current average demand",  "",  false, &avgDemFound},
@@ -118,115 +117,145 @@ static const mbusConfig mbusKeys[] PROGMEM = {
 };
 
 void processMeterTelegram(){
+  for(int i = 7; i < sizeof(dsmrKeys)/sizeof(dsmrKeys[0]); i++){
+    *dsmrKeys[i].keyFound = false;
+  }
   boolean meterIdFound = true;
-  if(meterData[0] < 999999.9 && meterData[0] > -1.0){
+  int i = 0;
+  if(checkFloat(dsmrKeys[i+7].dsmrKey, dsmrKeys[i+7].deviceType, meterData[0])){
     totConT1 = meterData[0];
     totConT1Found = true;
   }
   else meterIdFound = false;
-  if(meterData[1] < 999999.9 && meterData[1] > -1.0){
+  i++;
+  if(checkFloat(dsmrKeys[i+7].dsmrKey, dsmrKeys[i+7].deviceType, meterData[1])){
     totConT2 = meterData[1];
     totConT2Found = true;
   }
   else meterIdFound = false;
-  if(meterData[2] < 999999.9 && meterData[2] > -1.0){
+  i++;
+  if(checkFloat(dsmrKeys[i+7].dsmrKey, dsmrKeys[i+7].deviceType, meterData[2])){
     totInT1 = meterData[2];
     totInT1Found = true;
   }
   else meterIdFound = false;
-  if(meterData[3] < 999999.9 && meterData[3] > -1.0){
+  i++;
+  if(checkFloat(dsmrKeys[i+7].dsmrKey, dsmrKeys[i+7].deviceType, meterData[3])){
     totInT2 = meterData[3];
     totInT2Found = true;
   }
   else meterIdFound = false;
-  if(meterData[4] < 99.9 && meterData[4] > -1.0){
+  i++;
+  if(checkFloat(dsmrKeys[i+7].dsmrKey, dsmrKeys[i+7].deviceType, meterData[4])){
     powCon = meterData[4];
     powConFound = true;
   }
   else meterIdFound = false;
-  if(meterData[5] < 99.9 && meterData[5] > -1.0){
+  i++;
+  if(checkFloat(dsmrKeys[i+7].dsmrKey, dsmrKeys[i+7].deviceType, meterData[5])){
     powIn = meterData[5];
     powInFound = true;
   }
   else meterIdFound = false;
+  i++;
   if(meterData[6] < 99.9 && meterData[6] > -1.0){
     avgDem = meterData[6];
     avgDemFound = true;
   }
+  i++;
   if(meterData[7] < 99.9 && meterData[7] > -1.0){
     maxDemM = meterData[7];
     maxDemMFound = true;
   }
+  i++;
   if(meterData[8] < 500.0 && meterData[8] > -1.0){
     volt1 = meterData[8];
     volt1Found = true;
   }
+  i++;
   if(meterData[9] < 99.0 && meterData[9] > -1.0){
     current1 = meterData[9];
     current1Found = true;
   }
-  /*Process minimum required readings*/
-  totCon = totConT1 + totConT2;
-  totConFound = true;
-  totIn = totInT1 + totInT2;
-  totInFound = true;
-  netPowCon = powCon - powIn;
-  netPowConFound = true; 
+  i++;
   if(meterIdFound){
+    /*Process minimum required readings*/
+    float tempFloat = 0.0;
+    if(totConT1Found && totConT2Found){
+      tempFloat = totConT1 + totConT2;
+      if(checkFloat("A-0:0.0.1", "energy", tempFloat)){
+        totCon = tempFloat;
+        totConFound = true;
+      }
+    }
+    tempFloat = 0.0;
+    if(totInT1Found && totInT2Found){
+      tempFloat = totInT1 + totInT2;
+      if(checkFloat("A-0:0.0.2", "energy", tempFloat)){
+        totIn = tempFloat;
+        totInFound = true;
+      }
+    }
+    tempFloat = 0.0;
+    if(powConFound && powInFound){
+      tempFloat = powCon - powIn;
+      if(checkFloat("A-0:0.0.3", "power", tempFloat)){
+        netPowCon = tempFloat;
+        netPowConFound = true; 
+      }
+    }
     meterTimestamp = getTime();
     sinceMeterCheck = 0;
-  }
-  if(meterData[10] < 999999.9 && meterData[10] > -1.0){
-    registerMbusMeter("0-1:24.2.3","3");
-    parseMbus("0-1:24.2.3", meterData[10]);
-  }
-  if(meterData[11] < 999999.9 && meterData[11] > -1.0){
-    registerMbusMeter("0-2:24.2.1", "7");
-    parseMbus("0-2:24.2.1", meterData[11]);
-  }
-  if(payloadLength >= 24){
-    if(meterData[12] < 99.0 && meterData[12] > -1.0){
-      powCon1 = meterData[12];
-      powCon1Found = true;
+    if(meterData[10] < 999999.9 && meterData[10] > -1.0){
+      registerMbusMeter("0-1:24.2.3","3");
+      parseMbus("0-1:24.2.3", meterData[10]);
     }
-    if(meterData[13] < 99.0 && meterData[13] > -1.0){
-      powCon2 = meterData[13];
-      powCon2Found = true;
+    if(meterData[11] < 999999.9 && meterData[11] > -1.0){
+      registerMbusMeter("0-2:24.2.1", "7");
+      parseMbus("0-2:24.2.1", meterData[11]);
     }
-    if(meterData[14] < 99.0 && meterData[14] > -1.0){
-      powCon3 = meterData[14];
-      powCon3Found = true;
+    if(payloadLength >= 24){
+      if(meterData[12] < 99.0 && meterData[12] > -1.0){
+        powCon1 = meterData[12];
+        powCon1Found = true;
+      }
+      if(meterData[13] < 99.0 && meterData[13] > -1.0){
+        powCon2 = meterData[13];
+        powCon2Found = true;
+      }
+      if(meterData[14] < 99.0 && meterData[14] > -1.0){
+        powCon3 = meterData[14];
+        powCon3Found = true;
+      }
+      if(meterData[15] < 99.0 && meterData[15] > -1.0){
+        powIn1 = meterData[15];
+        powIn1Found = true;
+      }
+      if(meterData[16] < 99.0 && meterData[16] > -1.0){
+        powIn2 = meterData[16];
+        powIn2Found = true;
+      }
+      if(meterData[17] < 99.0 && meterData[17] > -1.0){
+        powIn3 = meterData[17];
+        powIn3Found = true;
+      }
+      if(meterData[18] < 500.0 && meterData[18] > -1.0){
+        volt2 = meterData[18];
+        volt2Found = true;
+      }
+      if(meterData[19] < 500.0 && meterData[19] > -1.0){
+        volt3 = meterData[19];
+        volt3Found = true;
+      }
+      if(meterData[20] < 99.9 && meterData[20] > -1.0){
+        current2 = meterData[20];
+        current2Found = true;
+      }
+      if(meterData[21] < 99.9 && meterData[21] > -1.0){
+        current3 = meterData[21];
+        current3Found = true;
+      }
     }
-    if(meterData[15] < 99.0 && meterData[15] > -1.0){
-      powIn1 = meterData[15];
-      powIn1Found = true;
-    }
-    if(meterData[16] < 99.0 && meterData[16] > -1.0){
-      powIn2 = meterData[16];
-      powIn2Found = true;
-    }
-    if(meterData[17] < 99.0 && meterData[17] > -1.0){
-      powIn3 = meterData[17];
-      powIn3Found = true;
-    }
-    if(meterData[18] < 500.0 && meterData[18] > -1.0){
-      volt2 = meterData[18];
-      volt2Found = true;
-    }
-    if(meterData[19] < 500.0 && meterData[19] > -1.0){
-      volt3 = meterData[19];
-      volt3Found = true;
-    }
-    if(meterData[20] < 99.9 && meterData[20] > -1.0){
-      current2 = meterData[20];
-      current2Found = true;
-    }
-    if(meterData[21] < 99.9 && meterData[21] > -1.0){
-      current3 = meterData[21];
-      current3Found = true;
-    }
-  }
-  if(meterIdFound){
     onTelegram();
     telegramCount++;
   }
@@ -384,27 +413,33 @@ bool checkFloat(String floatKey, String floatType, float floatValue){
   if(floatType == "energy"){
     if(floatValue > 999999.9 || floatValue < -1.0) floatValid = false;
     if(floatKey == "A-0:0.0.1"){
-      if(floatValue < prevtotCon) floatValid = false;
+      if(prevtotCon == 0) prevtotCon = floatValue;
+      if(floatValue < prevtotCon || (floatValue > prevtotCon + 23.9)) floatValid = false; //limit to 23.9kWh being consumed between two meter readings
       else if(floatValid = true) prevtotCon = floatValue;
     }
     if(floatKey == "A-0:0.0.2"){
-      if(floatValue < prevtotIn) floatValid = false;
+      if(prevtotIn == 0) prevtotIn = floatValue;
+      if(floatValue < prevtotIn || (floatValue > prevtotIn + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotIn = floatValue;
     }
     if(floatKey == "1-0:1.8.1"){
-      if(floatValue < prevtotConT1) floatValid = false;
+      if(prevtotConT1 == 0) prevtotConT1 = floatValue;
+      if(floatValue < prevtotConT1 || (floatValue > prevtotConT1 + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotConT1 = floatValue;
     }
     if(floatKey == "1-0:1.8.2"){
-      if(floatValue < prevtotConT2) floatValid = false;
+      if(prevtotConT2 == 0) prevtotConT2 = floatValue;
+      if(floatValue < prevtotConT2 || (floatValue > prevtotConT2 + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotConT2 = floatValue;
     }
     if(floatKey == "1-0:2.8.1"){
-      if(floatValue < prevtotIntT1) floatValid = false;
+      if(prevtotIntT1 == 0) prevtotIntT1 = floatValue;
+      if(floatValue < prevtotIntT1 || (floatValue > prevtotIntT1 + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotIntT1 = floatValue;
     }
     if(floatKey == "1-0:2.8.2"){
-      if(floatValue < prevtotIntT2) floatValid = false;
+      if(prevtotIntT2 == 0) prevtotIntT2 = floatValue;
+      if(floatValue < prevtotIntT2 || (floatValue > prevtotIntT2 + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotIntT2 = floatValue;
     }
   }
@@ -414,7 +449,7 @@ bool checkFloat(String floatKey, String floatType, float floatValue){
   else if(floatType == "voltage"){
     if(floatValue > 430.0 || floatValue < -1.0) floatValid = false;
   }
-  if(!floatValid) syslog("Spurious value for DSMR key " + floatKey, 2);
+  if(!floatValid) syslog("Spurious value for DSMR key " + floatKey + ": " + String(floatValue), 2);
   return floatValid;
 }
 
