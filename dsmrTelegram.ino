@@ -38,6 +38,7 @@ float prevtotConT1, prevtotConT2, prevtotCon, prevtotIntT1, prevtotIntT2, prevto
 unsigned long dummyInt, actTarrif, maxDemTime, totGasTime, totWatTime, totHeatTime;
 String dummyString, p1Version, meterId;
 bool dummyBool, totConFound, totInFound, netPowConFound, totConT1Found, totConT2Found, totInT1Found, totInT2Found, actTarrifFound, powConFound, powInFound, avgDemFound, maxDemMFound, volt1Found, current1Found, volt2Found, volt3Found, current2Found, current3Found, powCon1Found, powCon2Found, powCon3Found, powIn1Found, powIn2Found, powIn3Found;
+int spurCount;
 
 static const keyConfig dsmrKeys[] PROGMEM = {
   /*The list of all possible DSMR keys and how to parse them.
@@ -179,6 +180,7 @@ void processMeterTelegram(){
   }
   i++;
   if(meterIdFound){
+    spurCount = 0;
     /*Process minimum required readings*/
     float tempFloat = 0.0;
     if(totConT1Found && totConT2Found){
@@ -259,6 +261,7 @@ void processMeterTelegram(){
     onTelegram();
     telegramCount++;
   }
+  else spurCount++;
 }
 
 void parseMbus(String key, float splitValue){
@@ -413,32 +416,32 @@ bool checkFloat(String floatKey, String floatType, float floatValue){
   if(floatType == "energy"){
     if(floatValue > 999999.9 || floatValue < -1.0) floatValid = false;
     if(floatKey == "A-0:0.0.1"){
-      if(prevtotCon == 0) prevtotCon = floatValue;
+      if(prevtotCon == 0 || spurCount > 10) prevtotCon = floatValue;
       if(floatValue < prevtotCon || (floatValue > prevtotCon + 23.9)) floatValid = false; //limit to 23.9kWh being consumed between two meter readings
       else if(floatValid = true) prevtotCon = floatValue;
     }
     if(floatKey == "A-0:0.0.2"){
-      if(prevtotIn == 0) prevtotIn = floatValue;
+      if(prevtotIn == 0 || spurCount > 10) prevtotIn = floatValue;
       if(floatValue < prevtotIn || (floatValue > prevtotIn + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotIn = floatValue;
     }
     if(floatKey == "1-0:1.8.1"){
-      if(prevtotConT1 == 0) prevtotConT1 = floatValue;
+      if(prevtotConT1 == 0 || spurCount > 10) prevtotConT1 = floatValue;
       if(floatValue < prevtotConT1 || (floatValue > prevtotConT1 + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotConT1 = floatValue;
     }
     if(floatKey == "1-0:1.8.2"){
-      if(prevtotConT2 == 0) prevtotConT2 = floatValue;
+      if(prevtotConT2 == 0 || spurCount > 10) prevtotConT2 = floatValue;
       if(floatValue < prevtotConT2 || (floatValue > prevtotConT2 + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotConT2 = floatValue;
     }
     if(floatKey == "1-0:2.8.1"){
-      if(prevtotIntT1 == 0) prevtotIntT1 = floatValue;
+      if(prevtotIntT1 == 0 || spurCount > 10) prevtotIntT1 = floatValue;
       if(floatValue < prevtotIntT1 || (floatValue > prevtotIntT1 + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotIntT1 = floatValue;
     }
     if(floatKey == "1-0:2.8.2"){
-      if(prevtotIntT2 == 0) prevtotIntT2 = floatValue;
+      if(prevtotIntT2 == 0 || spurCount > 10) prevtotIntT2 = floatValue;
       if(floatValue < prevtotIntT2 || (floatValue > prevtotIntT2 + 23.9)) floatValid = false;
       else if(floatValid = true) prevtotIntT2 = floatValue;
     }
@@ -450,6 +453,7 @@ bool checkFloat(String floatKey, String floatType, float floatValue){
     if(floatValue > 430.0 || floatValue < -1.0) floatValid = false;
   }
   if(!floatValid) syslog("Spurious value for DSMR key " + floatKey + ": " + String(floatValue), 2);
+  if(spurCount > 10) spurCount = 0;
   return floatValid;
 }
 

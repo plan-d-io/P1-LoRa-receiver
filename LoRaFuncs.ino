@@ -15,6 +15,7 @@ void processSync(byte inMsgType, byte inMsgCounter, byte msg[]){
           waitForSync = 0;
           telegramCounter++;
           syncMode = 4;
+          telegramTimeOut = 0;
         }
         else Serial.println("Channel settings do not match");
 
@@ -32,6 +33,7 @@ void processSync(byte inMsgType, byte inMsgCounter, byte msg[]){
             sendSyncAck(false);
             telegramCounter = 0;
             syncMode = 9;
+            telegramTimeOut = 0;
           }
           else Serial.println("Channel settings do not match");
         }
@@ -242,7 +244,6 @@ void syncLoop(){
     }
     telegramCounter = 0;
     waitForSync = 0;
-
   }
   else if(syncMode == 4){ //send ack of rf channel switch and make the switch
     setLCD(13, 0 ,0);

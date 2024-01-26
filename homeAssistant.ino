@@ -308,5 +308,5 @@ void hadebugDevice(bool eraseMeter){
     }
     if(mqttPushCount < 4) delay(100);
   }
-   pubMqtt("sys/devices/" + String(apSSID) + "/reboot", "{\"value\": \"off\"}", false);
+  pubMqtt("sys/devices/" + String(apSSID) + "/reboot", "{\"value\": \"off\"}", false);
 }

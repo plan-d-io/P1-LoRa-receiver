@@ -261,16 +261,17 @@ void loop(){
         sendCRC = false;
       }
     }
-    /* When receiver, in telegram receive mode, has not received a meter telegram for
-     * more than 5 minutes, revert back into sync mode */
-    if(telegramTimeOut > 300000){
-      syncMode = 0;
-      setSF = 12;
-      setBW = 125;
-      syslog("Communication timeout, restarting sync without request", 3);
-      LoRa.setSpreadingFactor(setSF);
-      LoRa.setSignalBandwidth(setBW*1000);
-    }
+  }
+  /* When receiver, in telegram receive mode, has not received a meter telegram for
+   * more than 5 minutes, revert back into sync mode */
+  if(telegramTimeOut > 300000){
+    syncMode = 0;
+    setSF = 12;
+    setBW = 125;
+    syslog("Communication timeout, restarting sync without request", 3);
+    LoRa.setSpreadingFactor(setSF);
+    LoRa.setSignalBandwidth(setBW*1000);
+    telegramTimeOut = 0;
   }
   onReceive(LoRa.parsePacket());
 }
@@ -304,7 +305,11 @@ void onReceive(int packetSize) {
   Serial.print(inPayloadSize);
   Serial.println(" bytes");
   if(inNetworkNum != networkNum) {
-    syslog("Received message with wrong network ID " + inNetworkNum, 2);
+    syslog("Received message with wrong network ID " + String(inNetworkNum), 2);
+    byte incoming;
+    while(LoRa.available()) {
+      incoming= LoRa.read();
+    }
     return;
   }
   byte incoming[inPayloadSize];
@@ -312,6 +317,10 @@ void onReceive(int packetSize) {
   while(i<inPayloadSize) {
     incoming[i]= LoRa.read();
     i++;
+  }
+  byte rest;
+  while(LoRa.available()) {
+    rest= LoRa.read();
   }
   if(inMessageType == 0 || inMessageType == 1 || inMessageType == 3 || inMessageType == 31 || inMessageType == 32 || inMessageType == 33 || inMessageType == 128){
     if(inPayloadSize == 48 || inPayloadSize == 96) processTelegram(inMessageType, inMessageCounter, incoming);
@@ -326,6 +335,12 @@ void onReceive(int packetSize) {
     syslog("Received ACK for sync restart request, restarting sync", 2);
     LoRa.setSpreadingFactor(setSF);
     LoRa.setSignalBandwidth(setBW*1000);
+  }
+  else{
+    byte incoming;
+    while(LoRa.available()) {
+      incoming= LoRa.read();
+    }
   }
 }
 
