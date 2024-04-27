@@ -10,7 +10,8 @@ void processSync(byte inMsgType, byte inMsgCounter, byte msg[]){
           setLCD(11, 0, 0);
           setSF = msg[1];
           setBW = msg[2];
-          waitForSyncVal = msg[3]*1000;
+          if((msg[3]*1000) > (loraConfig[syncCount][3]*1000)) waitForSyncVal = loraConfig[syncCount][3]*1000;
+          else waitForSyncVal = msg[3]*1000;
           syslog("Received sync signal to set SF" + String(setSF) + " BW" + String(setBW) + ", and timer to " + String(waitForSyncVal/1000) + " seconds", 1);
           waitForSync = 0;
           telegramCounter++;
@@ -102,7 +103,7 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
         Serial.println("Transmitter is already synced, stopping syncing");
         syncMode = -1;
       }
-      if(inMsgType == 0 || inMsgType == 1) payloadLength = 12; //number of 32bit values encoded into the payload
+      if(inMsgType == 0 || inMsgType == 1) payloadLength = 12; //number of 32bit values encoded into the payload - MUST be 12 of 24 to be decrypted
       else if(inMsgType >= 3) payloadLength = 24; 
       unsigned int payloadByteSize = payloadLength*4;
       /*Serial.print("Encrypted byte array: ");
@@ -122,13 +123,13 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
       mbedtls_aes_setkey_dec( &aes, key, 256 );
       mbedtls_aes_crypt_cbc( &aes, MBEDTLS_AES_DECRYPT, aesBufferSize, iv, msg, plainText );
       mbedtls_aes_free( &aes );
-      /*Serial.print("Decrypted byte array: ");
+      Serial.print("Decrypted byte array: ");
       int f = payloadByteSize - 1;
       for(int l = 0; l< payloadByteSize; l++){
         Serial.print(plainText[l], DEC);
         if(l<f) Serial.print(", ");
       }
-      Serial.println("");*/
+      Serial.println("");
       /*Assemble the unsigned longs again and convert them back into floats*/
       for(int k = 0; k < payloadLength; k++){
         unsigned long recVar = 0;
@@ -138,8 +139,8 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
         recVar += plainText[j+1] << 8;
         recVar += plainText[j];
         float tempFloat = recVar/1000.0;
-        meterData[k] = tempFloat;
-        /*Serial.print("Received int ");
+        meterData[k] = tempFloat;/*
+        Serial.print("Received int ");
         Serial.print(recVar);
         Serial.print(" becomes float ");
         Serial.println(tempFloat, 3);*/
@@ -233,12 +234,21 @@ void syncLoop(){
     Serial.println(" telegrams");
     if(telegramCounter == 0){
       setLCD(13, 0, 0);
-      if(syncCount > 0) syncCount--; //revert to previous settings or stay on the first setting
+      if(revertTried == true){
+        syncCount = 0;
+        syslog("Sync timeout, revert tried, restarting sync with SF" + String(loraConfig[syncCount][0]) + "BW" + String(loraConfig[syncCount][1]), 3);
+        revertTried = false;
+      }
+      if(syncCount > 0){
+        syncCount--; //revert to previous settings or stay on the first setting
+        syslog("Sync timeout, reverting back to SF" + String(loraConfig[syncCount][0]) + "BW" + String(loraConfig[syncCount][1]), 3);
+        revertTried = true;
+      }
       setSF = loraConfig[syncCount][0];
       setBW = loraConfig[syncCount][1];
       waitForSendVal = loraConfig[syncCount][2]*1000;
-      waitForSyncVal = loraUpdate[0][syncCount]*2; //the transmitter has probably already stopped syncing, so wait if we can see meter telegrams being sent
-      syslog("Sync timeout, reverting back to SF" + String(setSF) + "BW" + String(setBW), 3);
+      waitForSyncVal = loraUpdate[0][syncCount]*2; //the transmitter has probably already stopped syncing, so wait if we can see meter telegrams being sent HIER
+      
       LoRa.setSpreadingFactor(setSF);
       LoRa.setSignalBandwidth(setBW*1000);
     }
