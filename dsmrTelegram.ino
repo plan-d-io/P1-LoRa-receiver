@@ -207,7 +207,7 @@ void processMeterTelegram(){
       }
     }
     meterTimestamp = getTime();
-    sinceMeterCheck = 0;
+    sinceMeterCheck = 0;/*
     if(meterData[10] < 999999.9 && meterData[10] > -1.0){
       registerMbusMeter("0-1:24.2.3","3");
       parseMbus("0-1:24.2.3", meterData[10]);
@@ -215,7 +215,7 @@ void processMeterTelegram(){
     if(meterData[11] < 999999.9 && meterData[11] > -1.0){
       registerMbusMeter("0-2:24.2.1", "7");
       parseMbus("0-2:24.2.1", meterData[11]);
-    }
+    }*/
     if(payloadLength >= 24){
       if(meterData[12] < 99.0 && meterData[12] > -1.0){
         powCon1 = meterData[12];

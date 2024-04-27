@@ -47,7 +47,7 @@ float packetSNR, packetSF, packetLossf, packetRSSI;
 int syncCount = 0;
 byte setSF, setBW;
 byte telegramCounter, telegramAckCounter;
-bool sendCRC;
+bool sendCRC, revertTried;
 /*AES encryption runtime vars*/
 unsigned int payloadLength;
 unsigned int aesBufferSize = 96;
@@ -103,13 +103,12 @@ void setup(){
   unitState = -1;
   Serial.begin(115200);
   delay(500);
+  setTimezone("CET-1CEST,M3.5.0,M10.5.0/3"); // Timezone for Brussels
   getHostname();
   Serial.println();
   syslog("Digital meter dongle booting", 0);
   restoreConfig();
   _wifi_STA = true;
-  _wifi_ssid = "Aether";
-  _wifi_password = "RaidillondelEauRouge0x03";
   _update_autoCheck = false;
   _update_auto = false;
   initSPIFFS();
@@ -263,8 +262,8 @@ void loop(){
     }
   }
   /* When receiver, in telegram receive mode, has not received a meter telegram for
-   * more than 5 minutes, revert back into sync mode */
-  if(telegramTimeOut > 300000){
+   * more than 3 minutes, revert back into sync mode */
+  if(telegramTimeOut > 180000){
     syncMode = 0;
     setSF = 12;
     setBW = 125;
@@ -323,7 +322,7 @@ void onReceive(int packetSize) {
     rest= LoRa.read();
   }
   if(inMessageType == 0 || inMessageType == 1 || inMessageType == 3 || inMessageType == 31 || inMessageType == 32 || inMessageType == 33 || inMessageType == 128){
-    if(inPayloadSize == 48 || inPayloadSize == 96) processTelegram(inMessageType, inMessageCounter, incoming);
+    if(inPayloadSize == 52 || inPayloadSize == 48 || inPayloadSize == 96) processTelegram(inMessageType, inMessageCounter, incoming);
   }
   else if(inMessageType == 170 || inMessageType == 178 || inMessageType == 85 || inMessageType == 93){
     processSync(inMessageType, inMessageCounter, incoming);
@@ -381,4 +380,10 @@ void initLoRa(){
   setBW = 125;
   syncMode = 0;
   waitForSync = 300000;
+}
+
+void setTimezone(String timezone){
+  Serial.printf("  Setting Timezone to %s\n", timezone.c_str());
+  setenv("TZ", timezone.c_str(), 1);  // Adjust the TZ.
+  tzset();
 }
