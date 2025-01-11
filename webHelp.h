@@ -391,7 +391,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                     // Set the first item as the selected option
                     if (data.LoRaSet.length > 0) {
                         loraSetSelect.value = data.LoRaSet[0].channel;
-            
                         // Trigger a re-render
                         loraSetSelect.dispatchEvent(new Event('change'));
                     }
