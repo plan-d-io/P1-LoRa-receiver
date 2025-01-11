@@ -66,6 +66,18 @@ boolean restoreConfig(){
   if(_eidclaim == ""){
     _eidclaim = _uuid.substring(2);
   }
+  if(_loraset == "Auto" || _loraset == "") forcedSettings = false;
+  else{
+    // Extract the spreading factor (SF) and bandwidth (BW)
+    int sfStart = _loraset.indexOf("SF") + 2; // Start after "SF"
+    int bwStart = _loraset.indexOf("BW") + 2; // Start after "BW"
+  
+    if (sfStart > 1 && bwStart > 1) {
+      forceSF = _loraset.substring(sfStart, _loraset.indexOf(' ', sfStart)).toInt();
+      forceBW = _loraset.substring(bwStart).toInt();
+    }
+  }
+  
   return true;
 }
 
@@ -171,6 +183,7 @@ boolean resetConfig() {
     preferences.remove("EMAIL");
     preferences.remove("MQTT_PASS");
     preferences.remove("MQTT_PFIX");
+    preferences.remove("LORA_SET");
     preferences.putString("LAST_RESET", "Rebooting for factory reset");
     syslog("Factory reset by user", 2);
   }
@@ -693,7 +706,7 @@ String returnConfig(){
 
 String returnBasicConfig(){
   /*Return a JSON string containing some basic config settings, useful to send over MQTT*/
-  String basicParameters[] = {"REL_CHAN", "reboots", "UPD_AUTO", "UPD_AUTOCHK", "RLT_EN", "RLT_THROTTLE", "EMAIL", "WIFI_SSID", "MQTT_HOST", "MQTT_PORT", "MQTT_ID", "MQTT_USER", "MQTT_PFIX", "UUID"};
+  String basicParameters[] = {"REL_CHAN", "reboots", "UPD_AUTO", "UPD_AUTOCHK", "LORA_SET", "EMAIL", "WIFI_SSID", "MQTT_HOST", "MQTT_PORT", "MQTT_ID", "MQTT_USER", "MQTT_PFIX", "UUID"};
   String response = "{\"HOSTNAME\":\"" + String(apSSID) + "\",";
   response += "\"FW_VER\":\"" + String(round2(fw_ver/100.0)) + "\",";
   for(int i = 0; i < sizeof(basicParameters)/sizeof(basicParameters[0]); i++){

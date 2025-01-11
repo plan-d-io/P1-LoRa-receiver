@@ -88,6 +88,8 @@ bool _ha_en, _eid_en, _realto_en;
 String _ha_device;
 String _eid_provkey, _eid_provsec, _eidclaim;
 unsigned long _realtoThrottle;
+/*LoRa vars*/
+String _loraset;
 /*Placeholder vars*/
 float _tempFloat;
 String _tempString;
@@ -102,7 +104,7 @@ static const boolStore configBool[] PROGMEM = {
   {"MQTT enabled", &_mqtt_en, "MQTT_EN", false, true},
   {"MQTT secure", &_mqtt_tls, "MQTT_TLS", false, true},
   {"MQTT auth", &_mqtt_auth, "MQTT_AUTH", false, true},
-  {"Full DSMR telegram", &_push_full_telegram, "PUSH_FULL", false, true},
+  {"Full DSMR telegram", &_push_full_telegram, "PUSH_FULL", false, false},
   {"Update auto", &_update_auto, "UPD_AUTO", true, true},
   {"Update autocheck", &_update_autoCheck, "UPD_AUTOCHK", false, true},
   {"Update start", &_update_start, "UPD_START", false, false},
@@ -145,7 +147,8 @@ static const stringStore configString[] PROGMEM = {
   {"HA device name", &_ha_device, "HA_DEVICE", "Utility meter", true},
   {"Last reset reason (firmware)", &_last_reset, "LAST_RESET", "", false},
   {"Release channel", &_rel_chan, "REL_CHAN", "main", true},
-  {"User email", &_user_email, "EMAIL", "", true}
+  {"User email", &_user_email, "EMAIL", "", true},
+  {"Lora radio settings", &_loraset, "LORA_SET", "Auto", true}
 };
 
 static const stringStore configPass[] PROGMEM = {

@@ -1,6 +1,7 @@
 void processSync(byte inMsgType, byte inMsgCounter, byte msg[]){
   if(msg[1] > 6 && msg[1] < 13 && (msg[2] == 125 || msg[2] == 250)){ //check for validity of link parameters
     if(inMsgType == 170 ){ //start sync message
+      screenSaver = 0;
       if(sizeof(msg) > 3){
         /* If the unit is waiting for the start sync signal, initiate syncing procedure.
          * If the start sync signal is rebroadcast during the syncing, reinitiate procedure.
@@ -10,33 +11,53 @@ void processSync(byte inMsgType, byte inMsgCounter, byte msg[]){
           setLCD(11, 0, 0);
           setSF = msg[1];
           setBW = msg[2];
-          if((msg[3]*1000) > (loraConfig[syncCount][3]*1000)) waitForSyncVal = loraConfig[syncCount][3]*1000;
-          else waitForSyncVal = msg[3]*1000;
-          syslog("Received sync signal to set SF" + String(setSF) + " BW" + String(setBW) + ", and timer to " + String(waitForSyncVal/1000) + " seconds", 1);
+          waitForSyncVal = msg[3]*1000;
+          Serial.print("Received sync signal to set SF to ");
+          Serial.print(setSF);
+          Serial.print(", BW to ");
+          Serial.print(setBW);
+          Serial.print(", and timer to ");
+          Serial.print(waitForSyncVal/1000);
+          if(forcedSettings) {
+            setSF = forceSF;
+            setBW = forceBW;
+            Serial.print(" seconds, but forcing this to SF");
+            Serial.print(forceSF);
+            Serial.print(" BW");
+            Serial.println(forceBW);
+          }
+          else Serial.println(" seconds");
           waitForSync = 0;
           telegramCounter++;
           syncMode = 4;
-          telegramTimeOut = 0;
         }
         else Serial.println("Channel settings do not match");
-
       }
     }
     else if(inMsgType == 85 ){ //stop sync signal
       if(sizeof(msg) > 2){
         if(syncMode > -1){
           syncCount = msg[0];
-          if(loraConfig[syncCount][0] == msg[1] && loraConfig[syncCount][1] == msg[2]){
-            setSF = loraConfig[syncCount][0];
-            setBW = loraConfig[syncCount][1];
+          if(!forcedSettings){
+            if(loraConfig[syncCount][0] == msg[1] && loraConfig[syncCount][1] == msg[2]){
+              setSF = loraConfig[syncCount][0];
+              setBW = loraConfig[syncCount][1];
+              waitForSync = 0;
+              syslog("Received stop sync signal, setting SF" + String(setSF) + " BW" + String(setBW) + ", and stopping sync procedure", 1);
+              sendSyncAck(false);
+              telegramCounter = 0;
+              syncMode = 9;
+              telegramTimeOut = 0;
+            }
+            else Serial.println("Channel settings do not match");
+          }
+          else{
             waitForSync = 0;
-            syslog("Received stop sync signal, setting SF" + String(setSF) + " BW" + String(setBW) + ", and stopping sync procedure", 1);
+            syslog("Received stop sync signal, forcing SF" + String(setSF) + " BW" + String(setBW) + ", and stopping sync procedure", 1);
             sendSyncAck(false);
             telegramCounter = 0;
-            syncMode = 9;
-            telegramTimeOut = 0;
+            syncMode = 9;            
           }
-          else Serial.println("Channel settings do not match");
         }
         else{
           Serial.println("wrong sync mode");
@@ -58,16 +79,20 @@ void sendSyncAck(bool startSync){
   Serial.print(", timer ");
   Serial.println(waitForSyncVal/1000);
   unsigned long tempMillis = millis();
+  digitalWrite(BOARD_LED, HIGH);
   LoRa.beginPacket();
   LoRa.write(networkNum);
   if(startSync)LoRa.write(178);
   else LoRa.write(93);
   LoRa.write(telegramCounter);
-  LoRa.write(3);
+  if(forcedSettings) LoRa.write(4);
+  else LoRa.write(3);
   LoRa.write(setSF);
   LoRa.write(setBW);
   LoRa.write(byte(waitForSyncVal/1000));
+  if(forcedSettings) LoRa.write(189);
   LoRa.endPacket();
+  digitalWrite(BOARD_LED, LOW);
   Serial.print("Transmission took ");
   Serial.print(millis() - tempMillis);
   Serial.println(" ms");
@@ -83,12 +108,14 @@ void sendSyncAck(bool startSync){
 void sendSyncReq(){
   syslog("Sending restart sync request", 1);
   unsigned long tempMillis = millis();
+  digitalWrite(BOARD_LED, HIGH);
   LoRa.beginPacket();
   LoRa.write(networkNum);
   LoRa.write(231); //payload type
   LoRa.write(telegramCounter);
   LoRa.write(0); //payload size
   LoRa.endPacket();
+  digitalWrite(BOARD_LED, LOW);
   Serial.print("Transmission took ");
   Serial.print(millis() - tempMillis);
   Serial.println(" ms");
@@ -100,7 +127,8 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
       else if(inMsgType == 1) Serial.println("Message is single phase meter telegram");
       else Serial.println("Message is three phase meter telegram");
       if(inMsgType != 0 && syncMode > 0){
-        Serial.println("Transmitter is already synced, stopping syncing");
+        syslog("Transmitter is already synced, stopping syncing", 1);
+        syslog("Setting SF and BW to " + String(setSF) + " " + String(setBW), 1);
         syncMode = -1;
       }
       if(inMsgType == 0 || inMsgType == 1) payloadLength = 12; //number of 32bit values encoded into the payload - MUST be 12 of 24 to be decrypted
@@ -193,6 +221,7 @@ void sendCRCAck(){
   Serial.print("Transmitting CRC with message counter ");
   Serial.println(telegramCounter);
   /*Transmit everything*/
+  digitalWrite(BOARD_LED, HIGH);
   LoRa.beginPacket();
   LoRa.write(networkNum);
   LoRa.write(8);
@@ -208,6 +237,7 @@ void sendCRCAck(){
   LoRa.write(payload[2]);
   LoRa.write(payload[3]);
   LoRa.endPacket();  // finish packet and send it.  ????????
+  digitalWrite(BOARD_LED, LOW);
 }
 
 void syncLoop(){

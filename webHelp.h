@@ -109,6 +109,21 @@ String payloadFormat(){
   return format;
 }
 
+String loraSettings(){
+  /*Replace with a dynamic Jsondoc*/
+  String channels;
+  if(_loraset == "Auto") channels = "{\"LoRaSet\":[{\"channel\":\"Auto\"},{\"channel\":\"SF12 BW125\"},{\"channel\":\"SF12 BW250\"},{\"channel\":\"SF11 BW250\"},{\"channel\":\"SF10 BW250\"},{\"channel\":\"SF9 BW250\"},{\"channel\":\"SF8 BW250\"},{\"channel\":\"SF7 BW250\"}]}"; 
+  else if(_loraset == "SF12 BW125") channels = "{\"LoRaSet\":[{\"channel\":\"SF12 BW125\"},{\"channel\":\"Auto\"},{\"channel\":\"SF12 BW250\"},{\"channel\":\"SF11 BW250\"},{\"channel\":\"SF10 BW250\"},{\"channel\":\"SF9 BW250\"},{\"channel\":\"SF8 BW250\"},{\"channel\":\"SF7 BW250\"}]}";
+  else if(_loraset == "SF12 BW250") channels = "{\"LoRaSet\":[{\"channel\":\"SF12 BW250\"},{\"channel\":\"Auto\"},{\"channel\":\"SF12 BW125\"},{\"channel\":\"SF11 BW250\"},{\"channel\":\"SF10 BW250\"},{\"channel\":\"SF9 BW250\"},{\"channel\":\"SF8 BW250\"},{\"channel\":\"SF7 BW250\"}]}"; 
+  else if(_loraset == "SF11 BW250") channels = "{\"LoRaSet\":[{\"channel\":\"SF11 BW250\"},{\"channel\":\"Auto\"},{\"channel\":\"SF12 BW125\"},{\"channel\":\"SF12 BW250\"},{\"channel\":\"SF10 BW250\"},{\"channel\":\"SF9 BW250\"},{\"channel\":\"SF8 BW250\"},{\"channel\":\"SF7 BW250\"}]}";
+  else if(_loraset == "SF10 BW250") channels = "{\"LoRaSet\":[{\"channel\":\"SF10 BW250\"},{\"channel\":\"Auto\"},{\"channel\":\"SF12 BW125\"},{\"channel\":\"SF12 BW250\"},{\"channel\":\"SF11 BW250\"},{\"channel\":\"SF9 BW250\"},{\"channel\":\"SF8 BW250\"},{\"channel\":\"SF7 BW250\"}]}";
+  else if(_loraset == "SF9 BW250") channels = "{\"LoRaSet\":[{\"channel\":\"SF9 BW250\"},{\"channel\":\"Auto\"},{\"channel\":\"SF12 BW125\"},{\"channel\":\"SF12 BW250\"},{\"channel\":\"SF11 BW250\"},{\"channel\":\"SF10 BW250\"},{\"channel\":\"SF8 BW250\"},{\"channel\":\"SF7 BW250\"}]}";
+  else if(_loraset == "SF8 BW250") channels = "{\"LoRaSet\":[{\"channel\":\"SF8 BW250\"},{\"channel\":\"Auto\"},{\"channel\":\"SF12 BW125\"},{\"channel\":\"SF12 BW250\"},{\"channel\":\"SF11 BW250\"},{\"channel\":\"SF10 BW250\"},{\"channel\":\"SF9 BW250\"},{\"channel\":\"SF7 BW250\"}]}";
+  else if(_loraset == "SF7 BW250") channels = "{\"LoRaSet\":[{\"channel\":\"SF7 BW250\"},{\"channel\":\"Auto\"},{\"channel\":\"SF12 BW125\"},{\"channel\":\"SF12 BW250\"},{\"channel\":\"SF11 BW250\"},{\"channel\":\"SF10 BW250\"},{\"channel\":\"SF9 BW250\"},{\"channel\":\"SF8 BW250\"}]}";
+  else channels = "{\"LoRaSet\":[{\"channel\":\"Auto\"},{\"channel\":\"SF12 BW125\"},{\"channel\":\"SF12 BW250\"},{\"channel\":\"SF11 BW250\"},{\"channel\":\"SF10 BW250\"},{\"channel\":\"SF9 BW250\"},{\"channel\":\"SF8 BW250\"},{\"channel\":\"SF7 BW250\"}]}";
+  return channels;
+}
+
 /*Everything between rawliteral( ) is treated as one big string*/
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -122,7 +137,6 @@ const char index_html[] PROGMEM = R"rawliteral(
 </head>
 
 <body>
-
     <div class="container">
         <noscript>To use the digital meter dongle, please enable JavaScript<br></noscript>
         <h2>Digital meter dongle</h2>
@@ -139,23 +153,26 @@ const char index_html[] PROGMEM = R"rawliteral(
         <button class="collapsible" id="realTimeDataCollapsible">Real-time data</button>
         <div class="content">
             <div class="grid-container">
-                <!-- Data will be populated here by JavaScript -->
             </div>
         </div>
         
         <form id="configForm">
             <button type="button" class="collapsible active">Basic settings</button>
             <div class="content" style="display: block;">
-            <!-- Dropdown for WiFi Network -->
             <label for="WIFI_SSID">WiFi Network:</label>
             <select id="WIFI_SSID" name="WIFI_SSID"></select><br><br>
-            <!-- Password Input -->
             <label for="WIFI_PASSWD">WiFi Password:</label>
             <input type="password" id="WIFI_PASSWD" name="WIFI_PASSWD"><br>
             <span class="show-password">Show password</span>
-            <!-- Email Input -->
             <label for="EMAIL">User Email:</label>
-            <input type="email" id="EMAIL" name="EMAIL"><br><br></div>
+            <input type="email" id="EMAIL" name="EMAIL">
+            <br><br></div>
+
+            <button type="button" class="collapsible">LoRa settings</button>
+            <div class="content">
+            <label for="LORA_SET">LoRa radio settings:</label>
+            <select id="LORA_SET" name="LORA_SET"></select>
+            </div>
 
             <button type="button" class="collapsible">MQTT</button>
             <div class="content">
@@ -216,19 +233,14 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="content">
             <label for="FIP_EN">Use fixed IP address</label>
             <input type="checkbox" id="FIP_EN" name="FIP_EN">
-            <!-- IP Address -->
             <label for="FIPADDR">IP Address:</label>
             <input type="text" id="FIPADDR" name="FIPADDR">
-            <!-- Default Gateway -->
             <label for="FDEFGTW">Default Gateway:</label>
             <input type="text" id="FDEFGTW" name="FDEFGTW">
-            <!-- Subnet Mask -->
             <label for="FSUBN">Subnet Mask:</label>
             <input type="text" id="FSUBN" name="FSUBN" pattern="^([0-9]{1,3}\.){3}[0-9]{1,3}$" title="Enter a valid subnet mask" required>
-            <!-- Primary DNS Server -->
             <label for="FDNS1">Primary DNS Server:</label>
             <input type="text" id="FDNS1" name="FDNS1" pattern="^([0-9]{1,3}\.){3}[0-9]{1,3}$" title="Enter a valid IP address" required>
-            <!-- Secondary DNS Server -->
             <label for="FDNS2">Secondary DNS Server:</label>
             <input type="text" id="FDNS2" name="FDNS2" pattern="^([0-9]{1,3}\.){3}[0-9]{1,3}$" title="Enter a valid IP address">
             <br><br>
@@ -238,18 +250,12 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="content">
             <label>Select meter readings to push over MQTT</label>
             <p style="text-align: left;">The list of all meter readings supported by the dongle. If a meter reading is not present in the meter telegram, it will not be pushed.</p>
-            <!-- New div for sensor checkboxes -->
               <div id="sensorCheckboxes" class="sensor-checkboxes-container">
-                  <!-- Checkboxes will be added here by JavaScript -->
               </div>
-            <label for="PUSH_FULL">Push complete telegram over MQTT</label>
-            <input type="checkbox" id="PUSH_FULL" name="PUSH_FULL">
-            <p style="text-align: left;">Pushes the complete P1 telegram, as received from the meter, over MQTT. WARNING: your MQTT broker must be able to receive large MQTT messages.</p>
             </div>
 
             <button type="button" class="collapsible">Dongle settings</button>
             <div class="content">
-            <!-- Dropdown for Release Channel -->
             <label for="REL_CHAN">Release Channel:</label>
             <select id="REL_CHAN" name="REL_CHAN"></select><br>
             <label for="RINT_SPIFFS">Update TLS bundle</label>
@@ -265,9 +271,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     </div>
 
     <script>
-        // Helper function to fetch with timeout and retry
         function fetchWithTimeoutAndRetry(url, options = {}, timeout = 2000, retries = 3) {
-            // Modify the headers to avoid compressed data
             options.headers = {
                 ...options.headers,
                 'Accept-Encoding': 'identity'
@@ -277,7 +281,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Request timed out')), timeout)
                 );
-        
                 Promise.race([fetchPromise, timeoutPromise])
                     .then(resolve)
                     .catch(error => {
@@ -295,26 +298,18 @@ const char index_html[] PROGMEM = R"rawliteral(
                 .then(response => response.json())
                 .then(data => {
                     const gridContainer = document.querySelector('.grid-container');
-                    gridContainer.innerHTML = ''; // Clear previous data
-        
-                    // Take only the first 6 elements
+                    gridContainer.innerHTML = '';
                     const firstSixItems = data.slice(0, 6);
-        
                     firstSixItems.forEach(item => {
                         const gridItem = document.createElement('div');
                         gridItem.classList.add('grid-item');
-        
-                        // Create a div for the friendly_name
                         const friendlyNameDiv = document.createElement('div');
                         friendlyNameDiv.classList.add('friendly-name');
                         friendlyNameDiv.innerHTML = `<strong>${item.friendly_name}</strong>`;
                         gridItem.appendChild(friendlyNameDiv);
-        
-                        // Add value and unit
                         const valueDiv = document.createElement('div');
                         valueDiv.innerHTML = `${item.value} ${item.unit}`;
                         gridItem.appendChild(valueDiv);
-        
                         gridContainer.appendChild(gridItem);
                     });
                 })
@@ -322,7 +317,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     console.error("Error fetching data:", error);
                 });
         }
-        var coll = document.querySelectorAll(".collapsible:not(#realTimeDataCollapsible)");  //animate the collapsibles
+        var coll = document.querySelectorAll(".collapsible:not(#realTimeDataCollapsible)");
         for (var i = 0; i < coll.length; i++) {
             coll[i].addEventListener("click", function() {
                 this.classList.toggle("active");
@@ -336,7 +331,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
         var configData = {};
         document.addEventListener("DOMContentLoaded", function() {
-              // Fetch SVG images
               fetchWithTimeoutAndRetry('/svg')
                 .then(response => response.json())
                 .then(data => {
@@ -344,43 +338,63 @@ const char index_html[] PROGMEM = R"rawliteral(
                     const meterImg = document.getElementById('meter');
                     const cloudImg = document.getElementById('cloud');
                     const brokerImg = document.getElementById('broker');
-            
-                    // Modify the SVG fill color to white
                     let wifiSvg = data.wifi.img.replace('<path', '<path fill="white"');
                     let meterSvg = data.meter.img.replace('<path', '<path fill="white"');
                     let cloudSvg = data.cloud.img.replace('<path', '<path fill="white"');
                     let brokerSvg = data.broker.img.replace('<path', '<path fill="white"');
-            
                     wifiImg.src = 'data:image/svg+xml,' + encodeURIComponent(wifiSvg);
                     wifiImg.alt = data.wifi.alt;
                     wifiImg.title = data.wifi.alt;
-            
                     meterImg.src = 'data:image/svg+xml,' + encodeURIComponent(meterSvg);
                     meterImg.alt = data.meter.alt;
                     meterImg.title = data.meter.alt;
-            
                     cloudImg.src = 'data:image/svg+xml,' + encodeURIComponent(cloudSvg);
                     cloudImg.alt = data.cloud.alt;
                     cloudImg.title = data.cloud.alt;
-            
                     brokerImg.src = 'data:image/svg+xml,' + encodeURIComponent(brokerSvg);
                     brokerImg.alt = data.broker.alt;
                     brokerImg.title = data.broker.alt;
-            
                     return fetchWithTimeoutAndRetry('/wifi');
                 })
-                // Fetch the SSID list and populate the dropdown
                 .then(response => response.json())
                 .then(data => {
                     const ssidSelect = document.getElementById('WIFI_SSID');
+                    ssidSelect.innerHTML = '';
                     data.SSIDlist.forEach(item => {
                         const option = document.createElement('option');
                         option.value = item.SSID;
                         option.textContent = item.SSID;
                         ssidSelect.appendChild(option);
                     });
-
-                    // Fetch the release channels and populate the dropdown
+                    if (data.SSIDlist.length > 0) {
+                        ssidSelect.value = data.SSIDlist[0].channel;
+                    }
+                    return fetchWithTimeoutAndRetry('/loraset');
+                })
+                .then(response => response.json())
+                .then(data => {
+                    const oldSelect = document.getElementById('LORA_SET');
+                    const parent = oldSelect.parentElement;
+                    // Remove the existing dropdown completely
+                    oldSelect.remove();
+                    // Create a new dropdown
+                    const loraSetSelect = document.createElement('select');
+                    loraSetSelect.id = 'LORA_SET';
+                    parent.appendChild(loraSetSelect);
+                    // Populate the new dropdown
+                    data.LoRaSet.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.channel;
+                        option.textContent = item.channel;
+                        loraSetSelect.appendChild(option);
+                    });
+                    // Set the first item as the selected option
+                    if (data.LoRaSet.length > 0) {
+                        loraSetSelect.value = data.LoRaSet[0].channel;
+            
+                        // Trigger a re-render
+                        loraSetSelect.dispatchEvent(new Event('change'));
+                    }
                     return fetchWithTimeoutAndRetry('/releasechan');
                 })
                 .then(response => response.json())
@@ -392,7 +406,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                         option.textContent = item.channel;
                         releaseChannelSelect.appendChild(option);
                     });
-                    // After populating the dropdowns, fetch the payload format data
                     return fetchWithTimeoutAndRetry('/payloadformat');
                 })
                 .then(response => response.json())
@@ -404,21 +417,16 @@ const char index_html[] PROGMEM = R"rawliteral(
                         option.textContent = item.value + ' - ' + item.description;
                         payloadFormatSelect.appendChild(option);
                     });
-                    // After populating the dropdowns, fetch the configuration data
                     return fetchWithTimeoutAndRetry('/config');
                 })
                 .then(response => response.json())
                 .then(data => {
-                    // Store the configuration data globally
                     configData = data; 
-                    // Set the hostname header
                     const hostname = data.HOSTNAME.value;
                     document.getElementById('hostnameHeader').textContent = hostname;
-                    // Set the footer version
                     const version = data.FW_VER.value;
                     const footerLink = document.getElementById('footerLink');
                     footerLink.textContent = `Digital meter dongle V${version} by plan-d.io`;
-                    //Populate all the form fields
                     const inputs = document.querySelectorAll('input, select, textarea');
                     inputs.forEach(input => {
                         const name = input.name;
@@ -468,15 +476,13 @@ const char index_html[] PROGMEM = R"rawliteral(
                     console.error('Error fetching or processing data:', error);
                     document.getElementById('infoMessage').textContent = "Error loading data, please refresh the page";
                 });
-
-                // Function to create sensor checkboxes
                 function createSensorCheckboxes() {
                     fetchWithTimeoutAndRetry('/data?all')
                         .then(response => response.json())
                         .then(data => {
                             const bitmask = configData.PUSH_DSMR.value;
                             const container = document.getElementById('sensorCheckboxes');
-                            container.innerHTML = ''; // Clear previous checkboxes
+                            container.innerHTML = '';
                 
                             data.forEach((sensor, index) => {
                                 const isChecked = (bitmask & (1 << index)) !== 0;
@@ -486,87 +492,66 @@ const char index_html[] PROGMEM = R"rawliteral(
                         })
                         .catch(error => console.error('Error fetching sensor data:', error));
                 }
-                
               function createCheckbox(name, isChecked) {
                   const container = document.createElement('div');
                   container.className = 'sensor-checkbox';
-              
                   const sensorName = document.createElement('span');
-                  sensorName.textContent = name; // Set sensor name as text
-                  sensorName.style.textAlign = 'left'; // Align text to the left
-              
+                  sensorName.textContent = name;
+                  sensorName.style.textAlign = 'left';
                   const checkbox = document.createElement('input');
                   checkbox.type = 'checkbox';
                   checkbox.name = 'sensor';
                   checkbox.value = name;
                   checkbox.checked = isChecked;
-              
                   container.appendChild(checkbox);
-                  container.appendChild(sensorName); // Append sensor name text
+                  container.appendChild(sensorName);
                   return container;
               }
-
-              // Real-time data collapsible
               const realTimeDataCollapsible = document.getElementById('realTimeDataCollapsible');
               const realTimeDataContent = realTimeDataCollapsible.nextElementSibling;
               let interval;
-          
               realTimeDataCollapsible.addEventListener('click', function() {
                   this.classList.toggle('active');
                   if (realTimeDataContent.style.display === "block") {
                       realTimeDataContent.style.display = "none";
-                      clearInterval(interval); // Stop fetching data when collapsed
+                      clearInterval(interval);
                   } else {
                       realTimeDataContent.style.display = "block";
-                      fetchData(); // Fetch data immediately on expand
-                      interval = setInterval(fetchData, 1000); // Fetch data every second
+                      fetchData();
+                      interval = setInterval(fetchData, 1000);
                   }
               });
-                
-            // Mark password fields as changed when their value is modified
             const passwordFields = document.querySelectorAll('input[type="password"]');
             passwordFields.forEach(field => {
                 field.addEventListener('input', function() {
                     this.setAttribute('data-changed', 'true');
                 });
             });
-
-            // Handle form submission
             const form = document.getElementById('configForm');
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
 
                 const formData = new FormData(form);
                 const jsonData = {};
-
-                // Handle unchecked checkboxes (outside sensorCheckboxes div)
                 const checkboxes = document.querySelectorAll('input[type="checkbox"]');
                 checkboxes.forEach(checkbox => {
                     if (!checkbox.closest('.sensor-checkboxes-container')) {
                         jsonData[checkbox.name] = checkbox.checked;
                     }
                 });
-
-                // Handle checkboxes within the sensorCheckboxes div and translate to bitmask
                 let bitmask = 0;
                 const sensorCheckboxes = document.querySelectorAll('.sensor-checkboxes-container input[type="checkbox"]');
                 sensorCheckboxes.forEach((checkbox, index) => {
                     jsonData[checkbox.name] = checkbox.checked;
-                    // Calculate bitmask based on checkbox status
                     if (checkbox.checked) {
                         bitmask |= 1 << index;
                     }
                 });
-            
-                // Include the PUSH_DSMR bitmask in the JSON data
                 jsonData['PUSH_DSMR'] = bitmask;
-
-                // Handle resetUUID checkbox
                 const resetUUIDCheckbox = document.getElementById('resetUUID');
                 if (resetUUIDCheckbox.checked) {
-                    jsonData['UUID'] = ''; // Set UUID to an empty string
+                    jsonData['UUID'] = '';
                 }
-
                 formData.forEach((value, key) => {
                     const inputElement = document.querySelector(`[name="${key}"]`);
                     if (inputElement.type !== 'checkbox') {
@@ -579,9 +564,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                         }
                     }
                 });
-
                 console.log('Submitting JSON:', JSON.stringify(jsonData));
-
                 fetch('/config', {
                     method: 'PUT',
                     headers: {
@@ -592,7 +575,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                 .then(response => response.json())
                 .then(data => {
                     console.log('Server response:', data);
-                    // Fetch the info message after form submission
                     return fetch('/info');
                 })
                 .then(response => response.text())
@@ -603,14 +585,11 @@ const char index_html[] PROGMEM = R"rawliteral(
                     console.error('Error submitting data:', error);
                 });
             });
-            // Show password functionality
             const passwordInput = document.getElementById('WIFI_PASSWD');
             const showPasswordText = document.querySelector('.show-password');
-
             showPasswordText.addEventListener('mouseover', function() {
                 passwordInput.type = 'text';
             });
-
             showPasswordText.addEventListener('mouseout', function() {
                 passwordInput.type = 'password';
             });

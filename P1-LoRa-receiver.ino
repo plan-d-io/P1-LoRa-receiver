@@ -33,7 +33,7 @@
 #define TRIGGER 25 //Pin to trigger meter telegram request
 
 /*Keep or change these three settings, but make sure the are identical on both transmitter and receiver!*/
-uint8_t networkNum = 127;                 //Must be unique for every transmitter-receiver pair
+uint8_t networkNum = 125;                 //Must be unique for every transmitter-receiver pair
 char plaintextKey[] = "abcdefghijklmnop"; //The key used to encrypt/decrypt the meter telegram
 char networkID[] = "myLoraNetwork";       //Used to generate the initialisation vector for the AES encryption algorithm
 
@@ -45,9 +45,9 @@ unsigned long waitForSyncVal, waitForSendVal;
 int syncMode, syncTry, packetLoss;
 float packetSNR, packetSF, packetLossf, packetRSSI;
 int syncCount = 0;
-byte setSF, setBW;
+byte setSF, setBW, forceSF, forceBW;
 byte telegramCounter, telegramAckCounter;
-bool sendCRC, revertTried;
+bool sendCRC, revertTried, forcedSettings;
 /*AES encryption runtime vars*/
 unsigned int payloadLength;
 unsigned int aesBufferSize = 96;
@@ -76,9 +76,10 @@ String configBuffer, resetReason, infoMsg, ssidList;
 char apSSID[] = "P1000000";
 unsigned int mqttPushCount, mqttPushFails, onlineVersion, fw_new;
 unsigned int secureClientError = 0;
+unsigned long screenTimeOut = 30000;
 time_t meterTimestamp;
 //Global timing vars
-elapsedMillis sinceConnCheck, sinceUpdateCheck, sinceClockCheck, sinceLastUpload, sinceDebugUpload, sinceRebootCheck, sinceMeterCheck, sinceWifiCheck, sinceTelegramRequest;
+elapsedMillis sinceConnCheck, sinceUpdateCheck, sinceClockCheck, sinceLastUpload, sinceDebugUpload, sinceRebootCheck, sinceMeterCheck, sinceWifiCheck, sinceTelegramRequest, screenSaver;
 //General housekeeping vars
 unsigned int reconncount, remotehostcount, telegramCount, telegramAction;
 int wifiRSSI;
@@ -89,21 +90,22 @@ uint8_t prevButtonState = false;
 bool serialDebug = true;
 bool telegramDebug = false;
 bool mqttDebug = false;
-bool httpDebug = false;
+bool httpDebug = true;
 bool extendedTelegramDebug = false;
 
 void setup(){
   initBoard();
   // When the power is turned on, a delay is required.
   delay(1500);
+  pinMode(4, INPUT_PULLDOWN);
   setLCD(0, 0, 0);
   Serial.begin(115200);
+  setTimezone("CET-1CEST,M3.5.0,M10.5.0/3"); // Timezone for Brussels
   Serial.println("LoRa P1 Receiver");
   pinMode(TRIGGER, OUTPUT);
   unitState = -1;
   Serial.begin(115200);
   delay(500);
-  setTimezone("CET-1CEST,M3.5.0,M10.5.0/3"); // Timezone for Brussels
   getHostname();
   Serial.println();
   syslog("Digital meter dongle booting", 0);
@@ -135,6 +137,7 @@ void setup(){
   String availabilityTopic = _mqtt_prefix.substring(0, _mqtt_prefix.length()-1);
   initLoRa();
   Serial.println("Done");
+  digitalWrite(BOARD_LED, LOW);
 }
 
 void loop(){
@@ -208,6 +211,7 @@ void loop(){
       eidUpload();
     }
     if(_update_autoCheck && sinceUpdateCheck >= 86400000){
+      hadebugDevice(false);
       updateAvailable = checkUpdate();
       if(updateAvailable) startUpdate();
       sinceUpdateCheck = 0;
@@ -264,6 +268,7 @@ void loop(){
   /* When receiver, in telegram receive mode, has not received a meter telegram for
    * more than 3 minutes, revert back into sync mode */
   if(telegramTimeOut > 180000){
+    screenSaver = 0;
     syncMode = 0;
     setSF = 12;
     setBW = 125;
@@ -273,12 +278,20 @@ void loop(){
     telegramTimeOut = 0;
   }
   onReceive(LoRa.parsePacket());
+  /*Turn screen back on when button is pushed*/
+  if(digitalRead(4) == HIGH){
+    screenSaver = 0;
+  }
+  if(screenSaver > screenTimeOut){
+    setLCD(-1, 0, 0);
+  }
 }
 
 void onReceive(int packetSize) {
   if (packetSize == 0)
       return;
   // read packet header bytes:
+  digitalWrite(BOARD_LED, HIGH);
   byte inNetworkNum = LoRa.read();
   byte inMessageType = LoRa.read();
   byte inMessageCounter = LoRa.read();
@@ -309,6 +322,7 @@ void onReceive(int packetSize) {
     while(LoRa.available()) {
       incoming= LoRa.read();
     }
+    digitalWrite(BOARD_LED, LOW);
     return;
   }
   byte incoming[inPayloadSize];
@@ -321,6 +335,7 @@ void onReceive(int packetSize) {
   while(LoRa.available()) {
     rest= LoRa.read();
   }
+  digitalWrite(BOARD_LED, LOW);
   if(inMessageType == 0 || inMessageType == 1 || inMessageType == 3 || inMessageType == 31 || inMessageType == 32 || inMessageType == 33 || inMessageType == 128){
     if(inPayloadSize == 52 || inPayloadSize == 48 || inPayloadSize == 96) processTelegram(inMessageType, inMessageCounter, incoming);
   }
@@ -344,6 +359,27 @@ void onReceive(int packetSize) {
 }
 
 void initLoRa(){
+  /*Set RF channel negotiation to auto or fixed*/
+  if(_loraset == "Auto" || _loraset == "") forcedSettings = false;
+  else {
+    forcedSettings = true;
+    // Extract the spreading factor (SF) and bandwidth (BW)
+    int sfStart = _loraset.indexOf("SF") + 2; // Start after "SF"
+    int bwStart = _loraset.indexOf("BW") + 2; // Start after "BW"
+  
+    if (sfStart > 1 && bwStart > 1) {
+      forceSF = _loraset.substring(sfStart, _loraset.indexOf(' ', sfStart)).toInt();
+      forceBW = _loraset.substring(bwStart).toInt();
+    }
+    else {
+      forceSF = 10;
+      forceBW = 250;
+    }
+    Serial.print("Will force RF channel to SF");
+    Serial.print(forceSF);
+    Serial.print(" BW");
+    Serial.println(forceBW);
+  }
   /*Start LoRa radio*/
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DIO0_PIN);
   if (!LoRa.begin(LoRa_frequency)) {

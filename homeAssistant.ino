@@ -110,7 +110,7 @@ void haAutoDiscovery(String friendlyName, String unit, String deviceType, String
   JsonArray identifiers = device.createNestedArray("identifiers");
   identifiers.add(deviceName);
   device["name"] = _ha_device;
-  device["model"] = "P1 dongle for DSMR compatible utility meters";
+  device["model"] = "P1 LoRa dongle for DSMR compatible utility meters";
   device["manufacturer"] = "plan-d.io";
   device["configuration_url"] = "http://" + WiFi.localIP().toString();
   device["sw_version"] = String(fw_ver/100.0);
@@ -195,9 +195,10 @@ void hadebugDevice(bool eraseMeter){
   else{
     if(!mqttclient.connected()) return;
   }
+  Serial.println("performing autodisc");
   //if(eraseMeter) syslog("Erasing Home Assistant MQTT debug entries", 0);
   //else syslog("Performing Home Assistant MQTT debug autodiscovery", 0);
-  for(int i = 0; i < 11; i++){
+  for(int i = 0; i < 12; i++){
     String chanName = "";
     DynamicJsonDocument doc(1024);
     if(i == 0){
@@ -269,6 +270,27 @@ void hadebugDevice(bool eraseMeter){
       doc["command_topic"] = tempTopic;
       doc["icon"] = "mdi:restart";
     }
+    else if(i == 11){
+      chanName = String(apSSID) + "_loraset";
+      doc["name"] = "LoRa radio settings";
+      doc["state_topic"] = "sys/devices/" + String(apSSID) + "/loraset";
+      JsonArray options = doc.createNestedArray("options");
+      options.add("Automatic");
+      options.add("SF12 BW125");
+      options.add("SF12 BW250");
+      options.add("SF11 BW250");
+      options.add("SF10 BW250");
+      options.add("SF9 BW250");
+      options.add("SF8 BW250");
+      options.add("SF7 BW250");
+      doc["value_template"] = "{{ value_json.value }}";
+      String tempTopic = _mqtt_prefix.substring(0, _mqtt_prefix.length()-1);
+      tempTopic += "/set/loraset";
+      tempTopic.replace(" ", "_");
+      tempTopic.toLowerCase();
+      doc["command_topic"] = tempTopic;
+      doc["icon"] = "mdi:antenna";
+    }
     doc["unique_id"] = chanName;
     doc["object_id"] = chanName;
     doc["availability_topic"] = _mqtt_prefix.substring(0, _mqtt_prefix.length()-1);
@@ -277,12 +299,13 @@ void hadebugDevice(bool eraseMeter){
     JsonArray identifiers = device.createNestedArray("identifiers");
     identifiers.add(apSSID);
     device["name"] = apSSID;
-    device["model"] = "P1 dongle debug monitoring";
+    device["model"] = "P1 LoRa dongle debug monitoring";
     device["manufacturer"] = "plan-d.io";
     device["configuration_url"] = "http://" + WiFi.localIP().toString();
     device["sw_version"] = String(fw_ver/100.0);
     String configTopic = "";
     if(i == 10) configTopic = "homeassistant/switch/" + chanName + "/config";
+    else if(i == 11) configTopic = "homeassistant/select/" + chanName + "/config";
     else configTopic = "homeassistant/sensor/" + chanName + "/config";
     String jsonOutput ="";
     //Ensure devices are erased before created again
@@ -309,4 +332,6 @@ void hadebugDevice(bool eraseMeter){
     if(mqttPushCount < 4) delay(100);
   }
   pubMqtt("sys/devices/" + String(apSSID) + "/reboot", "{\"value\": \"off\"}", false);
+  
+  pubMqtt("sys/devices/" + String(apSSID) + "/loraset", "{\"value\": \"" + _loraset + "\"}", false);
 }

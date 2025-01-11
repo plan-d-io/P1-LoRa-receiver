@@ -157,6 +157,7 @@ void connectMqtt() {
           mqttclientSecure.publish(availabilityTopic.c_str(), "online", true);
           mqttclientSecure.publish(("sys/devices/" + String(apSSID) + "/reboot").c_str(), "{\"value\": \"off\"}", false);
           mqttclientSecure.publish((availabilityTopic + "/sys/config").c_str(), returnBasicConfig().c_str(), true);
+          mqttclientSecure.subscribe((availabilityTopic + "/set/loraset").c_str());
           mqttclientSecure.subscribe((availabilityTopic + "/set/reboot").c_str());
           mqttclientSecure.subscribe((availabilityTopic + "/set/config").c_str());
           secureClientError = 0;
@@ -169,6 +170,7 @@ void connectMqtt() {
           mqttclient.publish(availabilityTopic.c_str(), "online", true);
           mqttclient.publish(("sys/devices/" + String(apSSID) + "/reboot").c_str(), "{\"value\": \"off\"}", false);
           mqttclient.publish((availabilityTopic + "/sys/config").c_str(), returnBasicConfig().c_str(), true);
+          mqttclient.subscribe((availabilityTopic + "/set/loraset").c_str());
           mqttclient.subscribe((availabilityTopic + "/set/reboot").c_str());
           mqttclient.subscribe((availabilityTopic + "/set/config").c_str());
         }
@@ -260,6 +262,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
         setReboot();
       }
     }
+  }
+  if (String(topic) == availabilityTopic + "/set/loraset") {
+    if(messageTemp != "") _loraset = messageTemp;
+    else _loraset = "Auto";
+    saveConfig();
   }
   if (String(topic) == dtopic + "/config") {
     syslog("Got config update over MQTT", 1);

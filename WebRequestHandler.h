@@ -1,7 +1,7 @@
 /*The webserver client and its handlers live here*/
 #include <LittleFS.h>
 extern bool findInConfig(String, int&, int&), processConfigJson(String, String&, bool), processConfigString(String, String&, bool), storeConfigVar(String, int, int), httpDebug;
-extern String returnConfigVar(String, int, int, int), returnConfig(), returnBasicConfig(), returnSvg(), ssidList, releaseChannels(), payloadFormat(), httpTelegramValues(String option), infoMsg, _user_email, configBuffer;
+extern String returnConfigVar(String, int, int, int), returnConfig(), returnBasicConfig(), returnSvg(), ssidList, loraSettings(), releaseChannels(), payloadFormat(), httpTelegramValues(String option), infoMsg, _user_email, configBuffer;
 extern const char index_html[], reboot_html[], test_html[], css[];
 extern char apSSID[];
 extern void setReboot(), saveResetReason(String);
@@ -113,6 +113,9 @@ void WebRequestHandler::handleRequest(AsyncWebServerRequest *request){
     }
     else if(request->url() == "/wifi" || request->url() == "/wifi/"){
       request->send(200, "application/json", ssidList);
+    }
+    else if(request->url() == "/loraset" || request->url() == "/loraset/"){
+      request->send(200, "application/json", loraSettings());
     }
     else if(request->url() == "/releasechan" || request->url() == "/releasechan/"){
       request->send(200, "application/json", releaseChannels());

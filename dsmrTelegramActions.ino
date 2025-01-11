@@ -138,7 +138,7 @@ String httpTelegramValues(String option){
   String jsonOutput = "[";
   /*Get the most important measurements*/
   if(option == "basic"){
-    int keys[] = {0, 1, 2, 10, 11};
+    int keys[] = {0, 1, 2, 13, 14};
     for(int i = 0; i < 5; i++){
       String tempJson = dsmrKeyPayload(keys[i]);
       tempJson += ",";

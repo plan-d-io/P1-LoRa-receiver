@@ -157,7 +157,7 @@
 #define SDCARD_CS                   13
 
 #define BOARD_LED                   0
-#define LED_ON                      LOW
+#define LED_ON                      HIGH
 
 #define HAS_DISPLAY
 #define HAS_SDCARD
