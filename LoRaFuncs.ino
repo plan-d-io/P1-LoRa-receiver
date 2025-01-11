@@ -183,7 +183,7 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
         Serial.println(telegramCounter);
         if(inMsgCounter < telegramCounter){
           Serial.println("Reached end of telegram count cycle, resetting");
-          if(setSF >= 9 && packetLoss < 26 && telegramCounter > 2){
+          if(setSF >= 9 && packetLoss < 26 && telegramCounter > 2 && !forcedSettings){
             syslog("RF channel good, requesting resync for better performance", 1);
             sendSyncReq();
           }
