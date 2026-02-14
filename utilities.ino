@@ -1,24 +1,51 @@
-boolean scanWifi(){
-  /*Scan all WiFi networks in range and compile their SSIDs into a JSON array*/
-  syslog("Performing wifi scan", 0);
+/*
+ * utilities.ino - WiFi, NTP, LittleFS, hostname, reboot. MVP: no TLS bundle, no MQTT.
+ */
+#include "ArduinoJson.h"
+#include <esp_system.h>
+#include "esp_task_wdt.h"
+
+String timestring;
+
+void get_reset_reason(int reason) {
+  switch (reason) {
+    case 0:  resetReason = "UNKNOWN"; break;
+    case 1:  resetReason = "POWERON_RESET"; break;
+    case 2:  resetReason = "EXT_RESET"; break;
+    case 3:  resetReason = "SW_RESET"; break;
+    case 4:  resetReason = "PANIC_RESET"; break;
+    case 5:  resetReason = "INT_WDT_RESET"; break;
+    case 6:  resetReason = "TASK_WDT_RESET"; break;
+    case 7:  resetReason = "WDT_RESET"; break;
+    case 8:  resetReason = "DEEPSLEEP_RESET"; break;
+    case 9:  resetReason = "BROWNOUT_RESET"; break;
+    case 10: resetReason = "SDIO_RESET"; break;
+    case 11: resetReason = "USB_RESET"; break;
+    case 12: resetReason = "JTAG_RESET"; break;
+    case 13: resetReason = "EFUSE_RESET"; break;
+    case 14: resetReason = "PWR_GLITCH_RESET"; break;
+    case 15: resetReason = "CPU_LOCKUP_RESET"; break;
+    default: resetReason = "NO_MEAN";
+  }
+}
+
+boolean scanWifi() {
+  syslog("Performing wifi scan", 1);
   boolean foundSavedSSID = false;
   int16_t n = WiFi.scanNetworks();
-  /*Check if the previously saved SSID is detected.*/
   for (int i = 0; i < n; ++i) {
-    if(WiFi.SSID(i) = _wifi_ssid){
-      foundSavedSSID = true;
-    }
+    if (WiFi.SSID(i) == _wifi_ssid) foundSavedSSID = true;
   }
+  syslog("WiFi scan complete: " + String(n) + " network(s) found", 1);
   DynamicJsonDocument doc(1024);
   JsonArray data = doc.createNestedArray("SSIDlist");
   int offset = 0;
-  /*If the previously saved SSID is present, put it first in the JSON array so the webmin HTML selects this SSID as the default option to display in the dropdown selection*/
-  if(foundSavedSSID){
+  if (foundSavedSSID) {
     data[0]["SSID"] = _wifi_ssid;
     offset = 1;
   }
   for (int i = 0; i < n; ++i) {
-    if(WiFi.SSID(i) != _wifi_ssid){
+    if (WiFi.SSID(i) != _wifi_ssid) {
       data[offset]["SSID"] = WiFi.SSID(i);
       offset++;
     }
@@ -29,9 +56,9 @@ boolean scanWifi(){
   return foundSavedSSID;
 }
 
-String getHostname(){
+String getHostname() {
   WiFi.macAddress(mac);
-  char macbuf[] = "00000";
+  char macbuf[7] = "000000";
   String macbufs = "";
   macbufs += String(mac[3], HEX);
   macbufs += String(mac[4], HEX);
@@ -47,408 +74,219 @@ String getHostname(){
   return macbufs;
 }
 
-void initSPIFFS(){
-  /*Initialize SPIFFS*/
-  syslog("Mounting SPIFFS... ", 0);
-  if(!SPIFFS.begin(true)){
-    syslog("Could not mount SPIFFS", 3);
-    spiffsMounted = false;
-  }
-  else{
-    /*Check if SPIFFS contains files*/
-    syslog("SPIFFS used bytes/total bytes:" + String(SPIFFS.usedBytes()) +"/" + String(SPIFFS.totalBytes()), 0);
-    listDir(SPIFFS, "/", 3);
-    if(SPIFFS.exists(TLSBUNDLE)) syslog("TLS bundle found", 0);
-    if(LittleFSFilesize(TLSBUNDLE) > 48124){
-      syslog("Old TLS bundle found, rebooting to update", 3);
-      _reinit_spiffs = true;
-    }
-    /*Check SPIFFS file I/O*/
-    syslog("Testing SPIFFS file I/O... ", 0);
-    if(!writeFile(SPIFFS, "/test.txt", "Hello ") || !appendFile(SPIFFS, "/test.txt", "World!\r\n")  || !readFile(SPIFFS, "/test.txt") || !deleteFile(SPIFFS, "/test.txt")){
-      syslog("Could not perform file I/O on SPIFFS", 3);
-      spiffsMounted = false;
-    }
-    else{
-      if(!_reinit_spiffs) spiffsMounted = true;
-      else spiffsMounted = false;
-    }
-  }
-  syslog("----------------------------", 0);
-  if(spiffsMounted){
-    _reinit_spiffs = false;
-    saveConfig();
-  }
-  else if(!_reinit_spiffs && !spiffsMounted){ //if SPIFFS couldn't be mounted, try a restart first
-    _reinit_spiffs = true;
-    saveResetReason("Rebooting to retry SPIFFS access");
-    saveConfig();
-    delay(500);
-    ESP.restart();
-  }
-}
-
-void initWifi(){
+void initWifi() {
   scanWifi();
-  if(_wifi_STA){
+  if (_wifi_STA && _wifi_ssid.length() > 0) {
     syslog("WiFi mode: station", 1);
     WiFi.mode(WIFI_STA);
-    if(_fip_en){
-      if (!WiFi.config(_fipaddr, _fdefgtw, _fsubn, _fdns1, _fdns2)) {
-        syslog("Failed to set static IP", 2);
-      }
+    if (_fip_en) {
+      if (!WiFi.config(_fipaddr, _fdefgtw, _fsubn, _fdns1, _fdns2)) syslog("Failed to set static IP", 2);
     }
     WiFi.begin(_wifi_ssid.c_str(), _wifi_password.c_str());
-    WiFi.setHostname("p1dongle");
+    WiFi.setHostname("p1receiver");
     elapsedMillis startAttemptTime;
-    syslog("Attempting connection to WiFi network " + _wifi_ssid, 0);
+    syslog("Attempting connection to " + _wifi_ssid, 0);
     while (WiFi.status() != WL_CONNECTED && startAttemptTime < 20000) {
       delay(200);
       Serial.print(".");
     }
-    Serial.println("");
-    if(WiFi.status() == WL_CONNECTED){
-      syslog("Connected to the WiFi network " + _wifi_ssid, 1);
+    Serial.println();
+    if (WiFi.status() == WL_CONNECTED) {
+      syslog("Connected to " + _wifi_ssid, 1);
       syslog("Local IP: " + WiFi.localIP().toString(), 0);
-      _fipaddr = WiFi.localIP();
-      _fdefgtw = (uint32_t) WiFi.gatewayIP();
-      _fsubn = (uint32_t) WiFi.subnetMask();
-      _fdns1 = WiFi.dnsIP();
-      _fdns2 = WiFi.dnsIP(1);
-      MDNS.begin("p1dongle");
-      if(spiffsMounted) unitState = 4;
-      else unitState = 7;
-      /*Add WiFi events to immediately detect WiFi changes*/
-      WiFi.onEvent(WiFiEvent, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_LOST_IP);
-      WiFi.onEvent(WiFiEvent, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_AUTHMODE_CHANGE);
-      WiFi.onEvent(WiFiEvent, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
-      /*Advertise over mDNS this dongle can be accessed at port 80*/
-      MDNS.addService("http", "tcp", 80);
-      /*Start NTP time sync*/
+      _fipaddr = (uint32_t)WiFi.localIP();
+      _fdefgtw = (uint32_t)WiFi.gatewayIP();
+      _fsubn = (uint32_t)WiFi.subnetMask();
+      _fdns1 = (uint32_t)WiFi.dnsIP();
+      _fdns2 = (uint32_t)WiFi.dnsIP(1);
+      if (!MDNS.begin("p1receiver")) Serial.println("mDNS failed");
+      else MDNS.addService("http", "tcp", 80);
+      unitState = 4;
+      WiFi.onEvent(WiFiEvent, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
       setClock(true);
       printLocalTime(true);
-      if(client){
-        syslog("Setting up TLS/SSL client", 0);
-        // Load certbundle from SPIFFS
-        File file = SPIFFS.open(TLSBUNDLE, "r");
-        if(!file || file.isDirectory() || file.size() < 100) {
-            syslog("Could not load cert bundle from SPIFFS", 3);
-            bundleLoaded = false;
-            unitState = 7;
-        }
-        // Load loadCertBundle into WiFiClientSecure
-        else {
-          size_t fileSize = file.size();
-          certData = new uint8_t[fileSize];
-          memset(certData, 0, fileSize);
-          file.read(certData, fileSize);
-          client->setCACertBundle(certData);
-        }
-        file.close();
-      } 
-      else {
-        syslog("Unable to create SSL client", 2);
-        unitState = 7;
-        httpsError = true;
-      }
-      if(_update_start){
-        unitState = -1;
-        startUpdate();
-      }
-      if(_update_finish){
-        unitState = -1;
-        finishUpdate(false);
-      }
-      if(_restore_finish){
-        unitState = -1;
-        finishUpdate(true);
-      }
-      if(!spiffsMounted){
-        unitState = 7;
-        bundleLoaded = false;
-      }
-      if(_mqtt_en) setupMqtt();
       sinceConnCheck = 60000;
-      _update_autoCheck = true;
-      if(_update_autoCheck) {
-        sinceUpdateCheck = 86400000-60000;
-      }
-    }
-    else{
-      syslog("Could not connect to the WiFi network", 2);
+    } else {
+      syslog("Could not connect to WiFi", 2);
       wifiError = true;
       _wifi_STA = false;
       unitState = 1;
     }
   }
-  if(!_wifi_STA){
+  if (!_wifi_STA) {
     syslog("WiFi mode: access point", 1);
     WiFi.mode(WIFI_AP);
-    WiFi.softAP("p1dongle");
+    WiFi.softAP("p1receiver");
     dnsServer.start(53, "*", WiFi.softAPIP());
-    MDNS.begin("p1dongle");
+    MDNS.begin("p1receiver");
     syslog("AP set up", 1);
     unitState = 0;
   }
 }
 
-String printLocalTime(boolean verbosePrint){
+String printLocalTime(boolean verbosePrint) {
   struct tm timeinfo;
-  String(timestring);
-  time_t now;
-  if(!getLocalTime(&timeinfo)){
+  if (!getLocalTime(&timeinfo)) {
     timestring = "";
-    if(verbosePrint) syslog("Failed to obtain time from RTC", 2);
+    if (verbosePrint) syslog("Failed to obtain time from RTC", 2);
     timeSet = false;
+    return "";
   }
-  else{
-    char timeStringBuff[30];
-    strftime(timeStringBuff, sizeof(timeStringBuff), "%Y/%m/%d %H:%M:%S", &timeinfo);
-    //if(!timeSet) timestring = "Time set: ";
-    timestring = timestring + String(timeStringBuff);
-    if(verbosePrint) syslog("Time set: " + timestring, 1);
-    timeSet = true;
-  }
-  return(timestring);
+  char timeStringBuff[30];
+  strftime(timeStringBuff, sizeof(timeStringBuff), "%Y/%m/%d %H:%M:%S", &timeinfo);
+  timestring = String(timeStringBuff);
+  if (verbosePrint) syslog("Time set: " + timestring, 1);
+  timeSet = true;
+  return timestring;
 }
 
-unsigned long printUnixTime(){
-  time_t now;
-  return(time(&now));
+void logHostname() {
+  syslog("Hostname: " + String(apSSID), 1);
 }
 
-void setClock(boolean firstSync){
-  time_t nowSecs = time(nullptr);
-  if(firstSync){
-    syslog("Configuring NTP time sync", 0);
+unsigned long printUnixTime() {
+  return (unsigned long)time(nullptr);
+}
+
+void setClock(boolean firstSync) {
+  if (firstSync) {
+    syslog("Configuring NTP time sync", 1);
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     timeconfigured = true;
   }
 }
 
-void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info){
-  /*If a change in WiFi happens, skip immediately to checking the connection*/
-  Serial.println("Disconnected from WiFi access point");
-  Serial.print("WiFi lost connection. Reason: ");
-  Serial.println(info.wifi_sta_disconnected.reason);
+void WiFiEvent(arduino_event_id_t event, arduino_event_info_t info) {
+  (void)event;
+  (void)info;
+  Serial.println("WiFi event");
   sinceConnCheck = 60000;
 }
 
-void checkConnection(){
-  if(WiFi.status() != WL_CONNECTED){
-    syslog("Lost WiFi connection, trying to reconnect", 2);
+void checkConnection() {
+  if (WiFi.status() != WL_CONNECTED) {
+    syslog("Lost WiFi, reconnecting...", 2);
     WiFi.disconnect();
     wifiError = true;
-    mqttClientError = true;
-    elapsedMillis restartAttemptTime;
-    while (WiFi.status() != WL_CONNECTED && restartAttemptTime < 20000) {
+    elapsedMillis t;
+    while (WiFi.status() != WL_CONNECTED && t < 20000) {
       WiFi.begin(_wifi_ssid.c_str(), _wifi_password.c_str());
+      delay(500);
     }
-    if(restartAttemptTime >= 20000) {
-      syslog("Wifi reconnection failed! Trying again in a minute", 3);
+    if (t >= 20000) {
       reconncount++;
+      syslog("WiFi reconnect timeout", 2);
     }
   }
-  if(wifiError && WiFi.status() == WL_CONNECTED){
+  if (wifiError && WiFi.status() == WL_CONNECTED) {
     wifiError = false;
-    syslog("Reconnected to the WiFi network", 0);
     reconncount = 0;
+    syslog("WiFi reconnected", 1);
   }
-  if(WiFi.status() == WL_CONNECTED){
-    wifiRSSI = WiFi.RSSI();
-    if(_mqtt_en && !mqttPaused){
-      if(mqttPushFails > 5){
-        mqttClientError = true;
-        syslog("MQTT client connection failed", 4);
-        mqttPushFails = 0;
-        reconncount++;
-      }
-      if(mqttHostError) setupMqtt();
-      else connectMqtt();
-      if(mqttWasPaused){
-        connectMqtt();
-        mqttWasPaused = false;
-      }
-    }
-  }
+  if (WiFi.status() == WL_CONNECTED) wifiRSSI = WiFi.RSSI();
 }
 
-void setReboot(){
+void setReboot() {
   sinceConnCheck = 0;
-  //syslog("Removing Home Assistant entities", 0);
-  //haAutoDiscovery(3); CHECKTHIS
-  //syslog("Saving configuration", 0);
   saveConfig();
-  //preferences.end();
-  SPIFFS.end();
   rebootInit = true;
   sinceRebootCheck = 0;
-  delete client;
   syslog("Rebooting", 2);
 }
 
-void forcedReset(){
-// use the watchdog timer to do a hard restart
-// It sets the wdt to 1 second, adds the current process and then starts an
-// infinite loop.
-  esp_task_wdt_init(1, true);
+void forcedReset() {
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = 1000,
+    .idle_core_mask = 0,
+    .trigger_panic = true,
+  };
+  esp_task_wdt_reconfigure(&wdt_config);
   esp_task_wdt_add(NULL);
-  delete client;
-  while(true);  // wait for watchdog timer to be triggered
+  while (true) { delay(10); }
 }
 
 double round2(double value) {
-   return (int)(value * 100 + 0.05) / 100.0;
-}
-
-uint32_t reverseBytes(uint32_t value) {
-    return ((value & 0xFF) << 24) |
-           ((value & 0xFF00) << 8) |
-           ((value & 0xFF0000) >> 8) |
-           ((value & 0xFF000000) >> 24);
+  return (int)(value * 100 + 0.05) / 100.0;
 }
 
 IPAddress uint32ToIPAddress(uint32_t ipInt) {
-    byte octet4 = (byte)(ipInt >> 24);
-    byte octet3 = (byte)(ipInt >> 16);
-    byte octet2 = (byte)(ipInt >> 8);
-    byte octet1 = (byte)ipInt;
-    return IPAddress(octet1, octet2, octet3, octet4);
+  return IPAddress((uint8_t)(ipInt), (uint8_t)(ipInt >> 8), (uint8_t)(ipInt >> 16), (uint8_t)(ipInt >> 24));
 }
 
 uint32_t ipStringToUint32(String ipStr) {
-    IPAddress ip;
-    ip.fromString(ipStr);
-    return (uint32_t)ip[3] << 24 | (uint32_t)ip[2] << 16 | (uint32_t)ip[1] << 8 | ip[0];
+  IPAddress ip;
+  if (!ip.fromString(ipStr)) return 0;
+  return (uint32_t)ip[3] << 24 | (uint32_t)ip[2] << 16 | (uint32_t)ip[1] << 8 | ip[0];
 }
 
-unsigned long getTime() {
-  time_t now;
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    //Serial.println("Failed to obtain time");
-    return(0);
+/* LittleFS init and file helpers for syslog. */
+void initLittleFS() {
+  syslog("Mounting LittleFS... ", 1);
+  if (!LittleFS.begin(false)) {
+    /* Empty or invalid partition (e.g. after erase): format once then mount. */
+    syslog("LittleFS mount failed, formatting... ", 1);
+    if (!LittleFS.format() || !LittleFS.begin(false)) {
+      syslog("Could not mount LittleFS (use Serial only for logs)", 3);
+      spiffsMounted = false;
+      return;
+    }
   }
-  time(&now);
-  return now;
+  syslog("LittleFS used/total: " + String(LittleFS.usedBytes()) + "/" + String(LittleFS.totalBytes()), 1);
+  if (!writeFile(LittleFS, "/test.txt", "Hello ") || !appendFile(LittleFS, "/test.txt", "World!\r\n") || !deleteFile(LittleFS, "/test.txt")) {
+    syslog("LittleFS file I/O test failed", 3);
+    LittleFS.end();
+    spiffsMounted = false;
+    return;
+  }
+  spiffsMounted = true;
+  syslog("LittleFS OK", 1);
 }
 
-/*SPIFFS file utilities*/
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-    Serial.printf("Listing directory: %s\r\n", dirname);
-    File root = fs.open(dirname);
-    if(!root){
-        Serial.println("- failed to open directory");
-        return;
-    }
-    if(!root.isDirectory()){
-        Serial.println(" - not a directory");
-        return;
-    }
-    File file = root.openNextFile();
-    while(file){
-        if(file.isDirectory()){
-            Serial.print("  DIR : ");
-            Serial.println(file.name());
-            if(levels){
-                listDir(fs, file.name(), levels -1);
-            }
-        } else {
-            Serial.print("  FILE: ");
-            Serial.print(file.name());
-            Serial.print("\tSIZE: ");
-            Serial.println(file.size());
-        }
-        file = root.openNextFile();
-    }
-}
-
-size_t LittleFSFilesize(const char* filename) {
-  auto file = LittleFS.open(filename, "r");
-  size_t filesize = file.size();
-  // Don't forget to clean up!
+bool writeFile(fs::FS& fs, const char* path, const char* message) {
+  File file = fs.open(path, FILE_WRITE);
+  if (!file) return false;
+  bool ok = file.print(message);
   file.close();
-  return filesize;
+  return ok;
 }
 
-void createDir(fs::FS &fs, const char * path){
-    Serial.printf("Creating Dir: %s\n", path);
-    if(fs.mkdir(path)){
-        Serial.println("Dir created");
-    } else {
-        Serial.println("mkdir failed");
-    }
-}
-void removeDir(fs::FS &fs, const char * path){
-    Serial.printf("Removing Dir: %s\n", path);
-    if(fs.rmdir(path)){
-        Serial.println("Dir removed");
-    } else {
-        Serial.println("rmdir failed");
-    }
+bool appendFile(fs::FS& fs, const char* path, const char* message) {
+  File file = fs.open(path, FILE_APPEND);
+  if (!file) return false;
+  bool ok = file.print(message);
+  file.close();
+  return ok;
 }
 
-bool writeFile(fs::FS &fs, const char * path, const char * message){
-   File file = fs.open(path, FILE_WRITE);
-   if(!file){
-      return false;
-   }
-   if(file.print(message)){
-      return true;
-   }else {
-      return false;
-   }
+bool deleteFile(fs::FS& fs, const char* path) {
+  return fs.remove(path);
 }
 
-bool appendFile(fs::FS &fs, const char * path, const char * message){
-    File file = fs.open(path, FILE_APPEND);
-    if(!file){
-        return false;
-    }
-    if(file.print(message)){
-        return true;
-    } else {
-        return false;
-    }
-    file.close();
+bool renameFile(fs::FS& fs, const char* path1, const char* path2) {
+  return fs.rename(path1, path2);
 }
 
-bool renameFile(fs::FS &fs, const char * path1, const char * path2){
-    if (fs.rename(path1, path2)) {
-        return true;
-    } else {
-        return false;
-    }
+int sizeFile(fs::FS& fs, const char* path) {
+  File file = fs.open(path);
+  if (!file || file.isDirectory()) {
+    if (file) file.close();
+    return 0;
+  }
+  int n = (int)file.size();
+  file.close();
+  return n;
 }
 
-bool deleteFile(fs::FS &fs, const char * path){
-    if(fs.remove(path)){
-      return true;
-    } else {
-      return false;
-    }
-}
-
-int sizeFile(fs::FS &fs, const char * path){
-    int fileSize = 0;
-    File file = fs.open(path);
-    if(!file || file.isDirectory()){
-        return fileSize;
-    }
-    fileSize = file.size();
-    file.close();
-    return fileSize;
-}
-
-bool readFile(fs::FS &fs, const char * path){
-    File file = fs.open(path);
-    if(!file || file.isDirectory()){
-        Serial.println("- failed to open file for reading");
-        return false;
-    }
-    while(file.available()){
-        Serial.write(file.read());
-    }
-    file.close();
-    return true;
+/* Read file into String (max len bytes). Caller must hold syslogMutex if used for syslog. */
+String readFileToString(fs::FS& fs, const char* path, size_t maxLen) {
+  String out;
+  File f = fs.open(path, "r");
+  if (!f || f.isDirectory()) {
+    if (f) f.close();
+    return out;
+  }
+  while (f.available() && out.length() < maxLen)
+    out += (char)f.read();
+  f.close();
+  return out;
 }

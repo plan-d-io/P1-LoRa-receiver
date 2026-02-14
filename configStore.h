@@ -1,103 +1,91 @@
-/*In this file you can add and configure global variables stored in non-volatile (NVS) data storage*/
+/* Config storage for P1-LoRa-receiver MVP - NVS key/value layout (same structure as full firmware for web UI compatibility) */
 
-/*The following bespoke structures are used to construct NVS data storages for each data type*/
-struct boolStore{
-   String varName;
-   bool* var;
-   String configName;
-   bool defaultValue;
-   bool includeInConfig;
+#pragma once
+
+struct boolStore {
+  String varName;
+  bool* var;
+  String configName;
+  bool defaultValue;
+  bool includeInConfig;
 };
 
-struct intStore{
-   String varName;
-   int* var;
-   String configName;
-   int defaultValue;
-   bool includeInConfig;
+struct intStore {
+  String varName;
+  int* var;
+  String configName;
+  int defaultValue;
+  bool includeInConfig;
 };
 
-struct uintStore{
-   String varName;
-   unsigned int* var;
-   String configName;
-   unsigned int defaultValue;
-   bool includeInConfig;
+struct uintStore {
+  String varName;
+  unsigned int* var;
+  String configName;
+  unsigned int defaultValue;
+  bool includeInConfig;
 };
 
-struct ulongStore{
-   String varName;
-   unsigned long* var;
-   String configName;
-   unsigned long defaultValue;
-   bool includeInConfig;
+struct ulongStore {
+  String varName;
+  unsigned long* var;
+  String configName;
+  unsigned long defaultValue;
+  bool includeInConfig;
 };
 
-struct ipStore{
-   String varName;
-   uint32_t* var;
-   String configName;
-   unsigned long defaultValue;
-   bool includeInConfig;
+struct ipStore {
+  String varName;
+  uint32_t* var;
+  String configName;
+  unsigned long defaultValue;
+  bool includeInConfig;
 };
 
-struct stringStore{
-   String varName;
-   String* var;
-   String configName;
-   String defaultValue;
-   bool includeInConfig;
+struct stringStore {
+  String varName;
+  String* var;
+  String configName;
+  String defaultValue;
+  bool includeInConfig;
 };
 
-struct floatStore{
-   String varName;
-   float* var;
-   String configName;
-   float defaultValue;
-   bool includeInConfig;
+struct floatStore {
+  String varName;
+  float* var;
+  String configName;
+  float defaultValue;
+  bool includeInConfig;
 };
 
-/*Declaration of global variables retrieved from NVS config storage, denoted by a leading _*/
-/*Dongle*/
+/* Global config variables (NVS-backed) */
 String _uuid;
-/*Wifi*/
 bool _wifi_STA, _fip_en;
 String _wifi_ssid, _wifi_password;
 uint32_t _fipaddr, _fdefgtw, _fsubn, _fdns1, _fdns2;
-/*User*/
 String _user_email;
-/*MQTT*/
 bool _mqtt_en, _mqtt_tls, _mqtt_auth;
 unsigned int _mqtt_port;
 String _mqtt_host, _mqtt_id, _mqtt_user, _mqtt_pass, _mqtt_prefix;
-/*Update*/
 bool _update_auto, _update_autoCheck, _update_start, _update_finish, _dev_fleet, _alpha_fleet, _v2_fleet, _restore_finish;
 unsigned long _fw_new;
 String _rel_chan;
-/*Debug*/
 bool _reinit_spiffs;
 unsigned int _rebootSecure, _bootcount;
 String _last_reset;
-/*DSMR processing*/
 bool _push_full_telegram;
 unsigned long _key_pushlist, _upload_throttle;
 unsigned int _mbus_pushlist, _trigger_interval, _trigger_type;
 int _payload_format;
-/*External services*/
 bool _ha_en, _eid_en, _realto_en;
 String _ha_device;
 String _eid_provkey, _eid_provsec, _eidclaim;
 unsigned long _realtoThrottle;
-/*LoRa vars*/
 String _loraset;
-/*Placeholder vars*/
 float _tempFloat;
 String _tempString;
 String eidUploadInterval = "Not yet set";
 
-/*The configuration data stores for every data type.
- * Format: { "User-readable name", global variable name (reference), "NVS key name", default value, include in config API }
- */
 static const boolStore configBool[] PROGMEM = {
   {"WiFi Station mode", &_wifi_STA, "WIFI_STA", false, false},
   {"Use fixed IP", &_fip_en, "FIP_EN", false, true},
@@ -119,7 +107,7 @@ static const boolStore configBool[] PROGMEM = {
 };
 
 static const intStore configInt[] PROGMEM = {
-  {"Data payload format", &_payload_format, "FRMT_PYLD", 3, true} //0 = value only, 1 = minimal json, 2 = standard json, 3 = COFY format
+  {"Data payload format", &_payload_format, "FRMT_PYLD", 3, true}
 };
 
 static const uintStore configUInt[] PROGMEM = {
@@ -152,15 +140,13 @@ static const stringStore configString[] PROGMEM = {
 };
 
 static const stringStore configPass[] PROGMEM = {
-  /*Although also Strings, passwords get their own data store as they are never returned as plaintext (contrary to Strings)
-    This store can also be used for GDPR sensitive information, e.g. user e-mails.*/
-  {"WiFi password", &_wifi_password, "WIFI_PASSWD", "Aether", true},
-  {"MQTT password", &_mqtt_pass, "MQTT_PASS", "RaidillondelEauRouge0x03", true}
+  {"WiFi password", &_wifi_password, "WIFI_PASSWD", "", true},
+  {"MQTT password", &_mqtt_pass, "MQTT_PASS", "", true}
 };
 
 static const stringStore configSecret[] PROGMEM = {
-  {"EID Provisioning key", &_eid_provkey, "EID_PROVKEY", "B3184173261C3", true},
-  {"EID Provisioning secret", &_eid_provsec, "EID_PROVSEC", "JQKF4e1rdwdrjMMdMwyciN6sj5oUZ0w1", true}
+  {"EID Provisioning key", &_eid_provkey, "EID_PROVKEY", "", true},
+  {"EID Provisioning secret", &_eid_provsec, "EID_PROVSEC", "", true}
 };
 
 static const ipStore configIP[] PROGMEM = {
@@ -171,6 +157,4 @@ static const ipStore configIP[] PROGMEM = {
   {"Secondary DNS", &_fdns2, "FDNS2", 0, true}
 };
 
-static const floatStore configFloat[] PROGMEM = {
-  //{"tempFloat", &_tempFloat, "TMP_FLT", 1}
-};
+static const floatStore configFloat[] PROGMEM = {};

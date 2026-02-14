@@ -1,6 +1,15 @@
-bool meterError, httpsError;
+#ifndef WEBHELP_H_ARDUINOJSON
+#define WEBHELP_H_ARDUINOJSON
+#include "ArduinoJson.h"
+#endif
+#include <freertos/semphr.h>
+extern SemaphoreHandle_t svgMutex;
+
+bool meterError = false;
+bool httpsError = false;
 bool mqttHostError = true;
 bool mqttClientError = true;
+extern bool EIDuploadEn;
 
 static const String addJson[][2] PROGMEM = {
   /*You can add custom JSON fields to individual NVS config keys here, which will be added to the JSON response when querying/updating the variables through the HTTP API or MQTT.
@@ -27,13 +36,18 @@ static const String svgIcons[][3] PROGMEM = {
   {"connection", "No external IO connected", "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><title>connection</title><path d=\"M21.4 7.5C22.2 8.3 22.2 9.6 21.4 10.3L18.6 13.1L10.8 5.3L13.6 2.5C14.4 1.7 15.7 1.7 16.4 2.5L18.2 4.3L21.2 1.3L22.6 2.7L19.6 5.7L21.4 7.5M15.6 13.3L14.2 11.9L11.4 14.7L9.3 12.6L12.1 9.8L10.7 8.4L7.9 11.2L6.4 9.8L3.6 12.6C2.8 13.4 2.8 14.7 3.6 15.4L5.4 17.2L1.4 21.2L2.8 22.6L6.8 18.6L8.6 20.4C9.4 21.2 10.7 21.2 11.4 20.4L14.2 17.6L12.8 16.2L15.6 13.3Z\" /></svg>"},
   {"lan-connect", "Connected to MQTT broker", "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><title>lan-connect</title><path d=\"M4,1C2.89,1 2,1.89 2,3V7C2,8.11 2.89,9 4,9H1V11H13V9H10C11.11,9 12,8.11 12,7V3C12,1.89 11.11,1 10,1H4M4,3H10V7H4V3M3,13V18L3,20H10V18H5V13H3M14,13C12.89,13 12,13.89 12,15V19C12,20.11 12.89,21 14,21H11V23H23V21H20C21.11,21 22,20.11 22,19V15C22,13.89 21.11,13 20,13H14M14,15H20V19H14V15Z\" /></svg>"},
   {"lan-pending", "Could not connect to MQTT broker", "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><title>lan-pending</title><path d=\"M4,1C2.89,1 2,1.89 2,3V7C2,8.11 2.89,9 4,9H1V11H13V9H10C11.11,9 12,8.11 12,7V3C12,1.89 11.11,1 10,1H4M4,3H10V7H4V3M3,12V14H5V12H3M14,13C12.89,13 12,13.89 12,15V19C12,20.11 12.89,21 14,21H11V23H23V21H20C21.11,21 22,20.11 22,19V15C22,13.89 21.11,13 20,13H14M3,15V17H5V15H3M14,15H20V19H14V15M3,18V20H5V18H3M6,18V20H8V18H6M9,18V20H11V18H9Z\" /></svg>"},
-  {"lan-disconnect", "No MQTT broker configured", "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><title>lan-disconnect</title><path d=\"M4,1C2.89,1 2,1.89 2,3V7C2,8.11 2.89,9 4,9H1V11H13V9H10C11.11,9 12,8.11 12,7V3C12,1.89 11.11,1 10,1H4M4,3H10V7H4V3M14,13C12.89,13 12,13.89 12,15V19C12,20.11 12.89,21 14,21H11V23H23V21H20C21.11,21 22,20.11 22,19V15C22,13.89 21.11,13 20,13H14M3.88,13.46L2.46,14.88L4.59,17L2.46,19.12L3.88,20.54L6,18.41L8.12,20.54L9.54,19.12L7.41,17L9.54,14.88L8.12,13.46L6,15.59L3.88,13.46M14,15H20V19H14V15Z\" /></svg>"}
+  {"lan-disconnect", "No MQTT broker configured", "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><title>lan-disconnect</title><path d=\"M4,1C2.89,1 2,1.89 2,3V7C2,8.11 2.89,9 4,9H1V11H13V9H10C11.11,9 12,8.11 12,7V3C12,1.89 11.11,1 10,1H4M4,3H10V7H4V3M14,13C12.89,13 12,13.89 12,15V19C12,20.11 12.89,21 14,21H11V23H23V21H20C21.11,21 22,20.11 22,19V15C22,13.89 21.11,13 20,13H14M3.88,13.46L2.46,14.88L4.59,17L2.46,19.12L3.88,20.54L6,18.41L8.12,20.54L9.54,19.12L7.41,17L9.54,14.88L8.12,13.46L6,15.59L3.88,13.46M14,15H20V19H14V15Z\" /></svg>"},
+  {"eye-outline", "Show password", "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><title>eye-outline</title><path d=\"M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9M12,4.5C17,4.5 21.27,7.61 23,12C21.27,16.39 17,19.5 12,19.5C7,19.5 2.73,16.39 1,12C2.73,7.61 7,4.5 12,4.5M3.18,12C4.83,15.36 8.24,17.5 12,17.5C15.76,17.5 19.17,15.36 20.82,12C19.17,8.64 15.76,6.5 12,6.5C8.24,6.5 4.83,8.64 3.18,12Z\" /></svg>"}
   };
 
 
 String returnSvg(){
+  /* Use static doc to avoid ~5KB stack allocation in async HTTP handler (stack is ~4KB). */
+  /* Mutex prevents concurrent use when browser requests /svg in parallel with other requests. */
+  if (svgMutex != NULL) xSemaphoreTake(svgMutex, portMAX_DELAY);
+  static DynamicJsonDocument doc(3072);
+  doc.clear();
   String jsonOutput;
-  DynamicJsonDocument doc(5120);
   JsonObject wifiVar  = doc.createNestedObject("wifi");
   if(WiFi.status() == WL_CONNECTED){
     int wifiStrenght = abs(WiFi.RSSI());
@@ -90,6 +104,7 @@ String returnSvg(){
     localVar["alt"] = svgIcons[15][1];
   }
   serializeJson(doc, jsonOutput);
+  if (svgMutex != NULL) xSemaphoreGive(svgMutex);
   return jsonOutput;
 }
 
@@ -162,8 +177,12 @@ const char index_html[] PROGMEM = R"rawliteral(
             <label for="WIFI_SSID">WiFi Network:</label>
             <select id="WIFI_SSID" name="WIFI_SSID"></select><br><br>
             <label for="WIFI_PASSWD">WiFi Password:</label>
-            <input type="password" id="WIFI_PASSWD" name="WIFI_PASSWD"><br>
-            <span class="show-password">Show password</span>
+            <div class="password-row">
+                <input type="password" id="WIFI_PASSWD" name="WIFI_PASSWD" class="password-input">
+                <button type="button" class="password-toggle" id="passwordToggle" title="Show password" aria-label="Show password">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><title>Show password</title><path d="M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9M12,4.5C17,4.5 21.27,7.61 23,12C21.27,16.39 17,19.5 12,19.5C7,19.5 2.73,16.39 1,12C2.73,7.61 7,4.5 12,4.5M3.18,12C4.83,15.36 8.24,17.5 12,17.5C15.76,17.5 19.17,15.36 20.82,12C19.17,8.64 15.76,6.5 12,6.5C8.24,6.5 4.83,8.64 3.18,12Z" fill="currentColor"/></svg>
+                </button>
+            </div>
             <label for="EMAIL">User Email:</label>
             <input type="email" id="EMAIL" name="EMAIL">
             <br><br></div>
@@ -367,7 +386,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                         ssidSelect.appendChild(option);
                     });
                     if (data.SSIDlist.length > 0) {
-                        ssidSelect.value = data.SSIDlist[0].channel;
+                        ssidSelect.value = data.SSIDlist[0].SSID;
                     }
                     return fetchWithTimeoutAndRetry('/loraset');
                 })
@@ -555,7 +574,9 @@ const char index_html[] PROGMEM = R"rawliteral(
                     const inputElement = document.querySelector(`[name="${key}"]`);
                     if (inputElement.type !== 'checkbox') {
                         if (inputElement.type === 'password' || inputElement.type === 'email') {
-                            if (value && (inputElement.getAttribute('data-changed') === 'true' || !inputElement.placeholder.includes('set'))) {
+                            if (inputElement.getAttribute('data-changed') === 'true') {
+                                jsonData[key] = value;
+                            } else if (value && !inputElement.placeholder.includes('set')) {
                                 jsonData[key] = value;
                             }
                         } else {
@@ -585,12 +606,19 @@ const char index_html[] PROGMEM = R"rawliteral(
                 });
             });
             const passwordInput = document.getElementById('WIFI_PASSWD');
-            const showPasswordText = document.querySelector('.show-password');
-            showPasswordText.addEventListener('mouseover', function() {
+            const passwordToggle = document.getElementById('passwordToggle');
+            let passwordToggledOn = false;
+            passwordToggle.addEventListener('click', function() {
+                passwordToggledOn = !passwordToggledOn;
+                passwordInput.type = passwordToggledOn ? 'text' : 'password';
+                passwordToggle.setAttribute('title', passwordToggledOn ? 'Hide password' : 'Show password');
+                passwordToggle.setAttribute('aria-label', passwordToggledOn ? 'Hide password' : 'Show password');
+            });
+            passwordToggle.addEventListener('mouseenter', function() {
                 passwordInput.type = 'text';
             });
-            showPasswordText.addEventListener('mouseout', function() {
-                passwordInput.type = 'password';
+            passwordToggle.addEventListener('mouseleave', function() {
+                if (!passwordToggledOn) passwordInput.type = 'password';
             });
         });
     </script>
@@ -760,6 +788,43 @@ const char css[] PROGMEM = R"rawliteral(
             padding: 10px;
             margin: 10px 0;
             box-sizing: border-box;
+        }
+        .password-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .password-row .password-input {
+            flex: 1;
+            min-width: 0;
+            margin: 0;
+        }
+        .password-toggle {
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .password-toggle:hover {
+            background: rgba(255,255,255,0.08);
+        }
+        .password-toggle:active {
+            background: rgba(255,255,255,0.12);
+        }
+        .password-toggle svg {
+            width: 24px;
+            height: 24px;
+            display: block;
+            fill: white;
         }
         input[type="email"] {
             width: 100%;
