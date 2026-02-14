@@ -217,6 +217,47 @@ void processTelegram(byte inMsgType, byte inMsgCounter, byte msg[]){
     }
 }
 
+void processSensorReading(byte payloadSize, byte inMsgCounter, byte msg[]){
+  /*LoRa aux sensor payload: UID|sensor type|sensor data*/
+  bool uidfound = false;
+  for (byte i = 0; i < 8; i++) {
+    if (loraSensors[i] == msg[0]) {
+      uidfound = true;
+      break;
+    }
+  }
+  if(!uidfound){
+    // Find the first empty spot 
+    byte emptyIndex = 7; // Default to the last index if no empty spots
+    for (byte i = 0; i < 8; i++) {
+      if (loraSensors[i] == 0) { 
+        emptyIndex = i;
+        break;
+      }
+    }
+    // Add msg[0] to the determined spot
+    loraSensors[emptyIndex] = msg[0];
+    loraSensorDiscovery(msg[0], msg[1]);
+  }
+  if(msg[1] == 0){
+    /*Generic sensor*/    
+    pubMqtt("data/devices/lorasensor/" + String(msg[0]), String(msg[2]), false);
+  }  
+  else if(msg[1] == 1){
+    /*Mailbox sensor*/    
+    pubMqtt("data/devices/mailbox/openings", String(inMsgCounter), false);
+    pubMqtt("data/devices/mailbox/battery", String(msg[2]), false);
+  }
+  else if(msg[1] == 2){
+    /*Garage door sensor*/    
+    pubMqtt("data/devices/garage/openings", String(inMsgCounter), false);
+    pubMqtt("data/devices/garage/battery", String(msg[2]), false);
+  }
+  else{
+    ;;
+  }
+}
+
 void sendCRCAck(){
   Serial.print("Transmitting CRC with message counter ");
   Serial.println(telegramCounter);

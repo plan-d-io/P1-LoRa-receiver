@@ -1,7 +1,7 @@
 boolean checkUpdate(){
+  bool needUpdate = false;
   if(_update_autoCheck){
     clientSecureBusy = true;
-    bool needUpdate = false;
     if(_mqtt_tls){
       if(mqttclientSecure.connected()){
         syslog("Disconnecting TLS MQTT connection to perform firmware version check", 0);
@@ -62,8 +62,8 @@ boolean checkUpdate(){
     mqttPaused = false;
     mqttWasPaused = true;
     sinceConnCheck = 60000;
-    return needUpdate;
   }
+  return needUpdate;
 }
 
 boolean startUpdate(){
@@ -183,6 +183,7 @@ boolean startUpdate(){
     delay(500);
     return true;
   }
+  else return false;
 }
 
 boolean finishUpdate(bool restore){

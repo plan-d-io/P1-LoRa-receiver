@@ -299,6 +299,7 @@ String dsmrKeyPayload(int i){
     if(telegramDebug) Serial.print("undef");
     return "";
   }
+  return "";
 }
 
 String mbusKeyPayload(int i){

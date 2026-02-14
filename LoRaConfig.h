@@ -44,3 +44,6 @@ float meterData[] = {
   0,          //pad
   0           //pad
 };
+
+/*Array to hold the UIDs of detected LoRa aux sensors*/
+byte loraSensors[8];

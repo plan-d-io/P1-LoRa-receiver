@@ -1,5 +1,6 @@
 /*The webserver client and its handlers live here*/
 #include <LittleFS.h>
+
 extern bool findInConfig(String, int&, int&), processConfigJson(String, String&, bool), processConfigString(String, String&, bool), storeConfigVar(String, int, int), httpDebug;
 extern String returnConfigVar(String, int, int, int), returnConfig(), returnBasicConfig(), returnSvg(), ssidList, loraSettings(), releaseChannels(), payloadFormat(), httpTelegramValues(String option), infoMsg, _user_email, configBuffer;
 extern const char index_html[], reboot_html[], test_html[], css[];
@@ -17,17 +18,24 @@ public:
   void handleRequest(AsyncWebServerRequest *request);
 };
 
-bool WebRequestHandler::canHandle(AsyncWebServerRequest *request){
-  /*Add custom headers here with request->addInterestingHeader("ANY");
+/*bool WebRequestHandler::canHandle(AsyncWebServerRequest *request){
+  Add custom headers here with request->addInterestingHeader("ANY");
   Serial.println("Webrequest");
   Serial.println(request->method());
   int headers = request->headers();
   int i;
   for(i=0;i<headers;i++){
-    AsyncWebHeader* h = request->getHeader(i);
+    const AsyncWebHeader* h = request->getHeader(i);
     Serial.printf("HEADER[%s]: %s\n", h->name().c_str(), h->value().c_str());
-  }*/
+  }
   return true;
+}*/
+
+bool WebRequestHandler::canHandle(AsyncWebServerRequest *request) {
+    Serial.println("canHandle() called");
+    Serial.print("Requested URL: ");
+    Serial.println(request->url());
+    return true; // Always return true to test if it's being reached
 }
 
 void WebRequestHandler::handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
@@ -78,7 +86,7 @@ void WebRequestHandler::handleRequest(AsyncWebServerRequest *request){
       else{
         String response, foundInConfig;
         for(int i=0; i<params; i++){
-          AsyncWebParameter* p = request->getParam(i);
+          const AsyncWebParameter* p = request->getParam(i);
           int retVarType, retVarNum;
           if(findInConfig(p->name().c_str(), retVarType, retVarNum)){
             /*Check if the NVS key name passed as argument exists*/ 
@@ -107,7 +115,7 @@ void WebRequestHandler::handleRequest(AsyncWebServerRequest *request){
     else if(request->url() == "/data"){
       if(params == 0) request->send(200, "application/json", httpTelegramValues(""));
       else{
-        AsyncWebParameter* p = request->getParam(0);
+        const AsyncWebParameter* p = request->getParam((size_t)0);
         request->send(200, "application/json", httpTelegramValues(p->name().c_str()));
       }
     }

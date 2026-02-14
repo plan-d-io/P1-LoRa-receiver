@@ -6,13 +6,15 @@
 #include "mbedtls/md.h"
 #include <esp32/rom/crc.h>
 #include "rom/rtc.h"
-#include <esp_int_wdt.h>
+//#include <esp_int_wdt.h>
 #include <esp_task_wdt.h>
 #include <LittleFS.h>
 #define SPIFFS LittleFS
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <HTTPClient.h>
-#include <WiFiClientSecure.h>
+//#include <WiFiClientSecure.h>
+#include <NetworkClientSecure.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
@@ -28,7 +30,7 @@
 #include "configStore.h"
 #include "ledControl.h"
 #include "externalIntegrations.h"
-#include "WebRequestHandler.h"
+//#include "WebRequestHandler.h"
 #include "webHelp.h"
 #define TRIGGER 25 //Pin to trigger meter telegram request
 
@@ -64,7 +66,7 @@ DNSServer dnsServer;
 uint8_t* certData = nullptr; 
 WiFiClient wificlient;
 PubSubClient mqttclient(wificlient);
-WiFiClientSecure *client = new WiFiClientSecure;
+NetworkClientSecure *client = new NetworkClientSecure;
 PubSubClient mqttclientSecure(*client);
 HTTPClient https;
 UUID uuid;
@@ -84,14 +86,14 @@ elapsedMillis sinceConnCheck, sinceUpdateCheck, sinceClockCheck, sinceLastUpload
 unsigned int reconncount, remotehostcount, telegramCount, telegramAction;
 int wifiRSSI;
 float freeHeap, minFreeHeap, maxAllocHeap;
-byte mac[6];
+uint8_t mac[6];
 uint8_t prevButtonState = false;
 /*Debug*/
 bool serialDebug = true;
-bool telegramDebug = false;
+bool telegramDebug = true;
 bool mqttDebug = false;
-bool httpDebug = false;
-bool extendedTelegramDebug = false;
+bool httpDebug = true;
+bool extendedTelegramDebug = true;
 
 void setup(){
   initBoard();
@@ -106,18 +108,18 @@ void setup(){
   unitState = -1;
   Serial.begin(115200);
   delay(500);
-  getHostname();
   Serial.println();
   syslog("Digital meter dongle booting", 0);
   restoreConfig();
-  _wifi_STA = true;
-  _update_autoCheck = false;
-  _update_auto = false;
+  //_wifi_STA = true;
+  //_update_autoCheck = false;
+  //_update_auto = false;
   initSPIFFS();
+  configBuffer = returnConfig();
   externalIntegrationsBootstrap();
   if(_trigger_type == 0) digitalWrite(TRIGGER, HIGH);
   else digitalWrite(TRIGGER, LOW);
-  syslog("Digital meter dongle " + String(apSSID) +" V" + String(fw_ver/100.0) + " by plan-d.io", 1);
+  syslog("Digital meter dongle V" + String(fw_ver/100.0) + " by plan-d.io", 1);
   if(_dev_fleet) syslog("Using experimental (development) firmware", 2); //change this to one variable, but keep legacy compatibility intact
   if(_alpha_fleet) syslog("Using pre-release (alpha) firmware", 0);
   if(_v2_fleet) syslog("Using V2.0 firmware", 0);
@@ -131,9 +133,7 @@ void setup(){
   syslog("Last reset reason (firmware): " + _last_reset, 1);
   debugInfo = true;
   initWifi();
-  server.addHandler(new WebRequestHandler());
-  server.begin();
-  configBuffer = returnConfig();
+  setupServer(); 
   String availabilityTopic = _mqtt_prefix.substring(0, _mqtt_prefix.length()-1);
   initLoRa();
   Serial.println("Done");
@@ -349,6 +349,9 @@ void onReceive(int packetSize) {
     syslog("Received ACK for sync restart request, restarting sync", 2);
     LoRa.setSpreadingFactor(setSF);
     LoRa.setSignalBandwidth(setBW*1000);
+  }
+  else if(inMessageType == 153){
+    processSensorReading(inPayloadSize, inMessageCounter, incoming);
   }
   else{
     byte incoming;

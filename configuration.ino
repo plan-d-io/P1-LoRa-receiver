@@ -363,7 +363,6 @@ String returnConfigVar(String varName, int varType, int varNum, int level){
 
   return jsonOutput;
 }
-
 boolean storeConfigVar(String keyValue, int varType, int varNum){
   long retLong;
   unsigned long retULong;

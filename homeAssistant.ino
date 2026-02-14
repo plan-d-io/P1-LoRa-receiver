@@ -335,3 +335,103 @@ void hadebugDevice(bool eraseMeter){
   
   pubMqtt("sys/devices/" + String(apSSID) + "/loraset", "{\"value\": \"" + _loraset + "\"}", false);
 }
+
+void loraSensorDiscovery(byte uid, byte type){
+  if(!_ha_en || !_mqtt_en || mqttClientError || mqttHostError) {
+    return;
+  }
+  if(_mqtt_tls){
+    if(!mqttclientSecure.connected()) return;
+  }
+  else{
+    if(!mqttclient.connected()) return;
+  }
+  Serial.println("performing lora autodisc");
+  String chanName = "";
+  String configTopic = "";
+  String jsonOutput ="";
+  DynamicJsonDocument doc(1024);
+  if(type == 0){
+    /*Generic sensor*/
+    chanName = "lorasensor_" + String(uid);
+    doc["name"] = chanName;
+    doc["state_topic"] = "data/devices/lorasensor/" + String(uid);
+    doc["unique_id"] = chanName;
+    doc["object_id"] = chanName;
+    doc["availability_topic"] = _mqtt_prefix.substring(0, _mqtt_prefix.length()-1);
+    JsonObject device  = doc.createNestedObject("device");
+    JsonArray identifiers = device.createNestedArray("identifiers");
+    identifiers.add("LoRa_sensors");
+    device["name"] = "LoRa sensors";
+    device["model"] = "LoRa generic sensors";
+    device["manufacturer"] = "plan-d.io";
+    device["configuration_url"] = "http://" + WiFi.localIP().toString();
+    device["sw_version"] = String(fw_ver/100.0);
+    configTopic = "homeassistant/sensor/mailbox_openings/config";
+    serializeJson(doc, jsonOutput);
+    pubMqtt(configTopic, jsonOutput, true);
+  }
+  else if(type == 1){
+    chanName = "mailbox_" + String(uid) + "openings";
+    doc["name"] = "Openings";
+    doc["state_topic"] = "data/devices/mailbox/openings";
+    doc["icon"] = "mdi:mailbox-open-up-outline";
+    doc["unique_id"] = chanName;
+    doc["object_id"] = chanName;
+    doc["availability_topic"] = _mqtt_prefix.substring(0, _mqtt_prefix.length()-1);
+    JsonObject device  = doc.createNestedObject("device");
+    JsonArray identifiers = device.createNestedArray("identifiers");
+    identifiers.add("LoRa_mailbox");
+    device["name"] = "LoRa mailbox sensor";
+    device["model"] = "LoRa mailbox sensor";
+    device["manufacturer"] = "plan-d.io";
+    device["configuration_url"] = "http://" + WiFi.localIP().toString();
+    device["sw_version"] = String(fw_ver/100.0);
+    configTopic = "homeassistant/sensor/mailbox_openings/config";
+    serializeJson(doc, jsonOutput);
+    pubMqtt(configTopic, jsonOutput, true);
+    chanName = "mailbox_" + String(uid) + "battery";
+    doc["name"] = "Battery level";
+    doc["state_topic"] = "data/devices/mailbox/battery";
+    doc["icon"] = "mdi:battery-high";
+    doc["unit_of_measurement"] = "%";
+    doc["unique_id"] = chanName;
+    doc["object_id"] = chanName;
+    configTopic = "homeassistant/sensor/mailbox_battery/config";
+    serializeJson(doc, jsonOutput);
+    pubMqtt(configTopic, jsonOutput, true);
+  }
+  else if(type == 2){
+    chanName = "garage_" + String(uid) + "openings";
+    doc["name"] = "Openings";
+    doc["state_topic"] = "data/devices/garage/openings";
+    doc["icon"] = "mdi:garage-alert-variant";
+    doc["unique_id"] = chanName;
+    doc["object_id"] = chanName;
+    doc["availability_topic"] = _mqtt_prefix.substring(0, _mqtt_prefix.length()-1);
+    JsonObject device  = doc.createNestedObject("device");
+    JsonArray identifiers = device.createNestedArray("identifiers");
+    identifiers.add("LoRa_garage");
+    device["name"] = "LoRa garage door sensor";
+    device["model"] = "LoRa garage door sensor";
+    device["manufacturer"] = "plan-d.io";
+    device["configuration_url"] = "http://" + WiFi.localIP().toString();
+    device["sw_version"] = String(fw_ver/100.0);
+    configTopic = "homeassistant/sensor/garage_openings/config";
+    serializeJson(doc, jsonOutput);
+    pubMqtt(configTopic, jsonOutput, true);
+    chanName = "garage_" + String(uid) + "battery";
+    doc["name"] = "Battery level";
+    doc["state_topic"] = "data/devices/garage/battery";
+    doc["icon"] = "mdi:battery-high";
+    doc["unit_of_measurement"] = "%";
+    doc["unique_id"] = chanName;
+    doc["object_id"] = chanName;
+    configTopic = "homeassistant/sensor/garage_battery/config";
+    serializeJson(doc, jsonOutput);
+    pubMqtt(configTopic, jsonOutput, true);
+  }
+  else{
+    ;;
+  }
+}

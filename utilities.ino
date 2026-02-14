@@ -30,7 +30,15 @@ boolean scanWifi(){
 }
 
 String getHostname(){
-  WiFi.macAddress(mac);
+  esp_err_t ret = esp_wifi_get_mac(WIFI_IF_STA, mac);
+  if (ret == ESP_OK) {
+    char macStr[18];
+    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    syslog("MAC address: " + String(macStr), 0);
+  } else {
+    syslog("Failed to read MAC address", 4);
+  }
   char macbuf[] = "00000";
   String macbufs = "";
   macbufs += String(mac[3], HEX);
@@ -44,6 +52,7 @@ String getHostname(){
   apSSID[5] = macbuf[3];
   apSSID[6] = macbuf[4];
   apSSID[7] = macbuf[5];
+  syslog("Dongle ID " + String(apSSID), 0);
   return macbufs;
 }
 
@@ -93,6 +102,7 @@ void initWifi(){
   if(_wifi_STA){
     syslog("WiFi mode: station", 1);
     WiFi.mode(WIFI_STA);
+    getHostname();
     if(_fip_en){
       if (!WiFi.config(_fipaddr, _fdefgtw, _fsubn, _fdns1, _fdns2)) {
         syslog("Failed to set static IP", 2);
@@ -126,7 +136,6 @@ void initWifi(){
       MDNS.addService("http", "tcp", 80);
       /*Start NTP time sync*/
       setClock(true);
-      printLocalTime(true);
       if(client){
         syslog("Setting up TLS/SSL client", 0);
         // Load certbundle from SPIFFS
@@ -142,7 +151,7 @@ void initWifi(){
           certData = new uint8_t[fileSize];
           memset(certData, 0, fileSize);
           file.read(certData, fileSize);
-          client->setCACertBundle(certData);
+          client->setCACertBundle(certData, fileSize);
         }
         file.close();
       } 
@@ -189,6 +198,7 @@ void initWifi(){
     MDNS.begin("p1dongle");
     syslog("AP set up", 1);
     unitState = 0;
+    getHostname();
   }
 }
 
@@ -198,7 +208,7 @@ String printLocalTime(boolean verbosePrint){
   time_t now;
   if(!getLocalTime(&timeinfo)){
     timestring = "";
-    if(verbosePrint) syslog("Failed to obtain time from RTC", 2);
+    if(verbosePrint) syslog("Failed to obtain time from RTC, will use NTP", 2);
     timeSet = false;
   }
   else{
@@ -291,8 +301,12 @@ void forcedReset(){
 // use the watchdog timer to do a hard restart
 // It sets the wdt to 1 second, adds the current process and then starts an
 // infinite loop.
-  esp_task_wdt_init(1, true);
-  esp_task_wdt_add(NULL);
+  esp_task_wdt_config_t wdtConfig = {
+      .timeout_ms = 1000,    // Timeout in milliseconds (1 second)
+      .idle_core_mask = (1 << 0),  // Enable for core 0
+      .trigger_panic = true  // Trigger a panic (reboot)
+  };
+  esp_task_wdt_init(&wdtConfig);
   delete client;
   while(true);  // wait for watchdog timer to be triggered
 }

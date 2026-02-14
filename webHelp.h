@@ -133,6 +133,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
     <title>Digital meter - Main Menu</title>
 </head>
 
@@ -270,334 +271,335 @@ const char index_html[] PROGMEM = R"rawliteral(
         </footer>
     </div>
 
-    <script>
-        function fetchWithTimeoutAndRetry(url, options = {}, timeout = 2000, retries = 3) {
-            options.headers = {
-                ...options.headers,
-                'Accept-Encoding': 'identity'
-            };
-            return new Promise((resolve, reject) => {
-                const fetchPromise = fetch(url, options);
-                const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Request timed out')), timeout)
-                );
-                Promise.race([fetchPromise, timeoutPromise])
-                    .then(resolve)
-                    .catch(error => {
-                        if (retries === 0) {
-                            reject(error);
-                        } else {
-                            console.log(`Retrying... (${retries} attempts left)`);
-                            resolve(fetchWithTimeoutAndRetry(url, options, timeout, retries - 1));
-                        }
-                    });
-            });
-        }
-        function fetchData() {
-            fetch('/data?basic')
-                .then(response => response.json())
-                .then(data => {
-                    const gridContainer = document.querySelector('.grid-container');
-                    gridContainer.innerHTML = '';
-                    const firstSixItems = data.slice(0, 6);
-                    firstSixItems.forEach(item => {
-                        const gridItem = document.createElement('div');
-                        gridItem.classList.add('grid-item');
-                        const friendlyNameDiv = document.createElement('div');
-                        friendlyNameDiv.classList.add('friendly-name');
-                        friendlyNameDiv.innerHTML = `<strong>${item.friendly_name}</strong>`;
-                        gridItem.appendChild(friendlyNameDiv);
-                        const valueDiv = document.createElement('div');
-                        valueDiv.innerHTML = `${item.value} ${item.unit}`;
-                        gridItem.appendChild(valueDiv);
-                        gridContainer.appendChild(gridItem);
-                    });
-                })
-                .catch(error => {
-                    console.error("Error fetching data:", error);
-                });
-        }
-        var coll = document.querySelectorAll(".collapsible:not(#realTimeDataCollapsible)");
-        for (var i = 0; i < coll.length; i++) {
-            coll[i].addEventListener("click", function() {
-                this.classList.toggle("active");
-                var content = this.nextElementSibling;
-                if (content.style.display === "block") {
-                    content.style.display = "none";
-                } else {
-                    content.style.display = "block";
-                }
-            });
-        }
-        var configData = {};
-        document.addEventListener("DOMContentLoaded", function() {
-              fetchWithTimeoutAndRetry('/svg')
-                .then(response => response.json())
-                .then(data => {
-                    const wifiImg = document.getElementById('wifi');
-                    const meterImg = document.getElementById('meter');
-                    const cloudImg = document.getElementById('cloud');
-                    const brokerImg = document.getElementById('broker');
-                    let wifiSvg = data.wifi.img.replace('<path', '<path fill="white"');
-                    let meterSvg = data.meter.img.replace('<path', '<path fill="white"');
-                    let cloudSvg = data.cloud.img.replace('<path', '<path fill="white"');
-                    let brokerSvg = data.broker.img.replace('<path', '<path fill="white"');
-                    wifiImg.src = 'data:image/svg+xml,' + encodeURIComponent(wifiSvg);
-                    wifiImg.alt = data.wifi.alt;
-                    wifiImg.title = data.wifi.alt;
-                    meterImg.src = 'data:image/svg+xml,' + encodeURIComponent(meterSvg);
-                    meterImg.alt = data.meter.alt;
-                    meterImg.title = data.meter.alt;
-                    cloudImg.src = 'data:image/svg+xml,' + encodeURIComponent(cloudSvg);
-                    cloudImg.alt = data.cloud.alt;
-                    cloudImg.title = data.cloud.alt;
-                    brokerImg.src = 'data:image/svg+xml,' + encodeURIComponent(brokerSvg);
-                    brokerImg.alt = data.broker.alt;
-                    brokerImg.title = data.broker.alt;
-                    return fetchWithTimeoutAndRetry('/wifi');
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const ssidSelect = document.getElementById('WIFI_SSID');
-                    ssidSelect.innerHTML = '';
-                    data.SSIDlist.forEach(item => {
-                        const option = document.createElement('option');
-                        option.value = item.SSID;
-                        option.textContent = item.SSID;
-                        ssidSelect.appendChild(option);
-                    });
-                    if (data.SSIDlist.length > 0) {
-                        ssidSelect.value = data.SSIDlist[0].channel;
-                    }
-                    return fetchWithTimeoutAndRetry('/loraset');
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const oldSelect = document.getElementById('LORA_SET');
-                    const parent = oldSelect.parentElement;
-                    // Remove the existing dropdown completely
-                    oldSelect.remove();
-                    // Create a new dropdown
-                    const loraSetSelect = document.createElement('select');
-                    loraSetSelect.id = 'LORA_SET';
-                    parent.appendChild(loraSetSelect);
-                    // Populate the new dropdown
-                    data.LoRaSet.forEach(item => {
-                        const option = document.createElement('option');
-                        option.value = item.channel;
-                        option.textContent = item.channel;
-                        loraSetSelect.appendChild(option);
-                    });
-                    // Set the first item as the selected option
-                    if (data.LoRaSet.length > 0) {
-                        loraSetSelect.value = data.LoRaSet[0].channel;
-                        // Trigger a re-render
-                        loraSetSelect.dispatchEvent(new Event('change'));
-                    }
-                    return fetchWithTimeoutAndRetry('/releasechan');
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const releaseChannelSelect = document.getElementById('REL_CHAN');
-                    data.Releasechannels.forEach(item => {
-                        const option = document.createElement('option');
-                        option.value = item.channel;
-                        option.textContent = item.channel;
-                        releaseChannelSelect.appendChild(option);
-                    });
-                    return fetchWithTimeoutAndRetry('/payloadformat');
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const payloadFormatSelect = document.getElementById('FRMT_PYLD');
-                    data['Payload format'].forEach(item => {
-                        const option = document.createElement('option');
-                        option.value = item.value;
-                        option.textContent = item.value + ' - ' + item.description;
-                        payloadFormatSelect.appendChild(option);
-                    });
-                    return fetchWithTimeoutAndRetry('/config');
-                })
-                .then(response => response.json())
-                .then(data => {
-                    configData = data; 
-                    const hostname = data.HOSTNAME.value;
-                    document.getElementById('hostnameHeader').textContent = hostname;
-                    const version = data.FW_VER.value;
-                    const footerLink = document.getElementById('footerLink');
-                    footerLink.textContent = `Digital meter dongle V${version} by plan-d.io`;
-                    const inputs = document.querySelectorAll('input, select, textarea');
-                    inputs.forEach(input => {
-                        const name = input.name;
-                        if (data[name]) {
-                            const type = data[name].type;
-                            const value = data[name].value;
-                            switch (type) {
-                                case 'bool':
-                                    if (input.type === 'checkbox') {
-                                        input.checked = value;
-                                    } else {
-                                        input.value = value ? 'true' : 'false';
-                                    }
-                                    break;
-                                case 'int32':
-                                case 'uint32':
-                                case 'uint64':
-                                case 'string':
-                                    input.value = value;
-                                    break;
-                                case 'ipaddress':
-                                    input.value = value;
-                                    break;
-                                case 'password':
-                                    if (data[name].filled) {
-                                        input.placeholder = 'Password is set';
-                                    }
-                                    break;
-                                case 'secret':
-                                    if (data[name].filled) {
-                                        input.placeholder = 'Secret is set';
-                                    }
-                                    break;
-                                case 'email':
-                                    if (data[name].filled) {
-                                        input.placeholder = 'Email is set';
-                                    }
-                                    break;
-                                default:
-                                    console.warn(`Unhandled type: ${type} for input: ${name}`);
-                            }
-                        }
-                    });
-                    createSensorCheckboxes();
-                })
-                .catch(error => {
-                    console.error('Error fetching or processing data:', error);
-                    document.getElementById('infoMessage').textContent = "Error loading data, please refresh the page";
-                });
-                function createSensorCheckboxes() {
-                    fetchWithTimeoutAndRetry('/data?all')
-                        .then(response => response.json())
-                        .then(data => {
-                            const bitmask = configData.PUSH_DSMR.value;
-                            const container = document.getElementById('sensorCheckboxes');
-                            container.innerHTML = '';
-                
-                            data.forEach((sensor, index) => {
-                                const isChecked = (bitmask & (1 << index)) !== 0;
-                                const checkbox = createCheckbox(sensor.friendly_name, isChecked);
-                                container.appendChild(checkbox);
-                            });
-                        })
-                        .catch(error => console.error('Error fetching sensor data:', error));
-                }
-              function createCheckbox(name, isChecked) {
-                  const container = document.createElement('div');
-                  container.className = 'sensor-checkbox';
-                  const sensorName = document.createElement('span');
-                  sensorName.textContent = name;
-                  sensorName.style.textAlign = 'left';
-                  const checkbox = document.createElement('input');
-                  checkbox.type = 'checkbox';
-                  checkbox.name = 'sensor';
-                  checkbox.value = name;
-                  checkbox.checked = isChecked;
-                  container.appendChild(checkbox);
-                  container.appendChild(sensorName);
-                  return container;
-              }
-              const realTimeDataCollapsible = document.getElementById('realTimeDataCollapsible');
-              const realTimeDataContent = realTimeDataCollapsible.nextElementSibling;
-              let interval;
-              realTimeDataCollapsible.addEventListener('click', function() {
-                  this.classList.toggle('active');
-                  if (realTimeDataContent.style.display === "block") {
-                      realTimeDataContent.style.display = "none";
-                      clearInterval(interval);
-                  } else {
-                      realTimeDataContent.style.display = "block";
-                      fetchData();
-                      interval = setInterval(fetchData, 1000);
-                  }
-              });
-            const passwordFields = document.querySelectorAll('input[type="password"]');
-            passwordFields.forEach(field => {
-                field.addEventListener('input', function() {
-                    this.setAttribute('data-changed', 'true');
-                });
-            });
-            const form = document.getElementById('configForm');
-            form.addEventListener('submit', function(event) {
-                event.preventDefault();
-
-                const formData = new FormData(form);
-                const jsonData = {};
-                const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-                checkboxes.forEach(checkbox => {
-                    if (!checkbox.closest('.sensor-checkboxes-container')) {
-                        jsonData[checkbox.name] = checkbox.checked;
-                    }
-                });
-                let bitmask = 0;
-                const sensorCheckboxes = document.querySelectorAll('.sensor-checkboxes-container input[type="checkbox"]');
-                sensorCheckboxes.forEach((checkbox, index) => {
-                    jsonData[checkbox.name] = checkbox.checked;
-                    if (checkbox.checked) {
-                        bitmask |= 1 << index;
-                    }
-                });
-                jsonData['PUSH_DSMR'] = bitmask;
-                const resetUUIDCheckbox = document.getElementById('resetUUID');
-                if (resetUUIDCheckbox.checked) {
-                    jsonData['UUID'] = '';
-                }
-                formData.forEach((value, key) => {
-                    const inputElement = document.querySelector(`[name="${key}"]`);
-                    if (inputElement.type !== 'checkbox') {
-                        if (inputElement.type === 'password' || inputElement.type === 'email') {
-                            if (value && (inputElement.getAttribute('data-changed') === 'true' || !inputElement.placeholder.includes('set'))) {
-                                jsonData[key] = value;
-                            }
-                        } else {
-                            jsonData[key] = value;
-                        }
-                    }
-                });
-                console.log('Submitting JSON:', JSON.stringify(jsonData));
-                fetch('/config', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(jsonData)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Server response:', data);
-                    return fetch('/info');
-                })
-                .then(response => response.text())
-                .then(message => {
-                    document.getElementById('infoMessage').textContent = message;
-                })
-                .catch(error => {
-                    console.error('Error submitting data:', error);
-                });
-            });
-            const passwordInput = document.getElementById('WIFI_PASSWD');
-            const showPasswordText = document.querySelector('.show-password');
-            showPasswordText.addEventListener('mouseover', function() {
-                passwordInput.type = 'text';
-            });
-            showPasswordText.addEventListener('mouseout', function() {
-                passwordInput.type = 'password';
-            });
-        });
-    </script>
 </body>
 
 </html>
 
+)rawliteral";
+
+const char script_js[] PROGMEM = R"rawliteral(
+  function fetchWithTimeoutAndRetry(url, options = {}, timeout = 2000, retries = 3) {
+      options.headers = {
+          ...options.headers,
+          'Accept-Encoding': 'identity'
+      };
+      return new Promise((resolve, reject) => {
+          const fetchPromise = fetch(url, options);
+          const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Request timed out')), timeout)
+          );
+          Promise.race([fetchPromise, timeoutPromise])
+              .then(resolve)
+              .catch(error => {
+                  if (retries === 0) {
+                      reject(error);
+                  } else {
+                      console.log(`Retrying... (${retries} attempts left)`);
+                      resolve(fetchWithTimeoutAndRetry(url, options, timeout, retries - 1));
+                  }
+              });
+      });
+  }
+  function fetchData() {
+      fetch('/data?basic')
+          .then(response => response.json())
+          .then(data => {
+              const gridContainer = document.querySelector('.grid-container');
+              gridContainer.innerHTML = '';
+              const firstSixItems = data.slice(0, 6);
+              firstSixItems.forEach(item => {
+                  const gridItem = document.createElement('div');
+                  gridItem.classList.add('grid-item');
+                  const friendlyNameDiv = document.createElement('div');
+                  friendlyNameDiv.classList.add('friendly-name');
+                  friendlyNameDiv.innerHTML = `<strong>${item.friendly_name}</strong>`;
+                  gridItem.appendChild(friendlyNameDiv);
+                  const valueDiv = document.createElement('div');
+                  valueDiv.innerHTML = `${item.value} ${item.unit}`;
+                  gridItem.appendChild(valueDiv);
+                  gridContainer.appendChild(gridItem);
+              });
+          })
+          .catch(error => {
+              console.error("Error fetching data:", error);
+          });
+  }
+  var coll = document.querySelectorAll(".collapsible:not(#realTimeDataCollapsible)");
+  for (var i = 0; i < coll.length; i++) {
+      coll[i].addEventListener("click", function() {
+          this.classList.toggle("active");
+          var content = this.nextElementSibling;
+          if (content.style.display === "block") {
+              content.style.display = "none";
+          } else {
+              content.style.display = "block";
+          }
+      });
+  }
+  var configData = {};
+  document.addEventListener("DOMContentLoaded", function() {
+        fetchWithTimeoutAndRetry('/svg')
+          .then(response => response.json())
+          .then(data => {
+              const wifiImg = document.getElementById('wifi');
+              const meterImg = document.getElementById('meter');
+              const cloudImg = document.getElementById('cloud');
+              const brokerImg = document.getElementById('broker');
+              let wifiSvg = data.wifi.img.replace('<path', '<path fill="white"');
+              let meterSvg = data.meter.img.replace('<path', '<path fill="white"');
+              let cloudSvg = data.cloud.img.replace('<path', '<path fill="white"');
+              let brokerSvg = data.broker.img.replace('<path', '<path fill="white"');
+              wifiImg.src = 'data:image/svg+xml,' + encodeURIComponent(wifiSvg);
+              wifiImg.alt = data.wifi.alt;
+              wifiImg.title = data.wifi.alt;
+              meterImg.src = 'data:image/svg+xml,' + encodeURIComponent(meterSvg);
+              meterImg.alt = data.meter.alt;
+              meterImg.title = data.meter.alt;
+              cloudImg.src = 'data:image/svg+xml,' + encodeURIComponent(cloudSvg);
+              cloudImg.alt = data.cloud.alt;
+              cloudImg.title = data.cloud.alt;
+              brokerImg.src = 'data:image/svg+xml,' + encodeURIComponent(brokerSvg);
+              brokerImg.alt = data.broker.alt;
+              brokerImg.title = data.broker.alt;
+              return fetchWithTimeoutAndRetry('/wifi');
+          })
+          .then(response => response.json())
+          .then(data => {
+              const ssidSelect = document.getElementById('WIFI_SSID');
+              ssidSelect.innerHTML = '';
+              data.SSIDlist.forEach(item => {
+                  const option = document.createElement('option');
+                  option.value = item.SSID;
+                  option.textContent = item.SSID;
+                  ssidSelect.appendChild(option);
+              });
+              if (data.SSIDlist.length > 0) {
+                  ssidSelect.value = data.SSIDlist[0].channel;
+              }
+              return fetchWithTimeoutAndRetry('/loraset');
+          })
+          .then(response => response.json())
+          .then(data => {
+              const oldSelect = document.getElementById('LORA_SET');
+              const parent = oldSelect.parentElement;
+              // Remove the existing dropdown completely
+              oldSelect.remove();
+              // Create a new dropdown
+              const loraSetSelect = document.createElement('select');
+              loraSetSelect.id = 'LORA_SET';
+              parent.appendChild(loraSetSelect);
+              // Populate the new dropdown
+              data.LoRaSet.forEach(item => {
+                  const option = document.createElement('option');
+                  option.value = item.channel;
+                  option.textContent = item.channel;
+                  loraSetSelect.appendChild(option);
+              });
+              // Set the first item as the selected option
+              if (data.LoRaSet.length > 0) {
+                  loraSetSelect.value = data.LoRaSet[0].channel;
+                  // Trigger a re-render
+                  loraSetSelect.dispatchEvent(new Event('change'));
+              }
+              return fetchWithTimeoutAndRetry('/releasechan');
+          })
+          .then(response => response.json())
+          .then(data => {
+              const releaseChannelSelect = document.getElementById('REL_CHAN');
+              data.Releasechannels.forEach(item => {
+                  const option = document.createElement('option');
+                  option.value = item.channel;
+                  option.textContent = item.channel;
+                  releaseChannelSelect.appendChild(option);
+              });
+              return fetchWithTimeoutAndRetry('/payloadformat');
+          })
+          .then(response => response.json())
+          .then(data => {
+              const payloadFormatSelect = document.getElementById('FRMT_PYLD');
+              data['Payload format'].forEach(item => {
+                  const option = document.createElement('option');
+                  option.value = item.value;
+                  option.textContent = item.value + ' - ' + item.description;
+                  payloadFormatSelect.appendChild(option);
+              });
+              return fetchWithTimeoutAndRetry('/config');
+          })
+          .then(response => response.json())
+          .then(data => {
+              configData = data; 
+              const hostname = data.HOSTNAME.value;
+              document.getElementById('hostnameHeader').textContent = hostname;
+              const version = data.FW_VER.value;
+              const footerLink = document.getElementById('footerLink');
+              footerLink.textContent = `Digital meter dongle V${version} by plan-d.io`;
+              const inputs = document.querySelectorAll('input, select, textarea');
+              inputs.forEach(input => {
+                  const name = input.name;
+                  if (data[name]) {
+                      const type = data[name].type;
+                      const value = data[name].value;
+                      switch (type) {
+                          case 'bool':
+                              if (input.type === 'checkbox') {
+                                  input.checked = value;
+                              } else {
+                                  input.value = value ? 'true' : 'false';
+                              }
+                              break;
+                          case 'int32':
+                          case 'uint32':
+                          case 'uint64':
+                          case 'string':
+                              input.value = value;
+                              break;
+                          case 'ipaddress':
+                              input.value = value;
+                              break;
+                          case 'password':
+                              if (data[name].filled) {
+                                  input.placeholder = 'Password is set';
+                              }
+                              break;
+                          case 'secret':
+                              if (data[name].filled) {
+                                  input.placeholder = 'Secret is set';
+                              }
+                              break;
+                          case 'email':
+                              if (data[name].filled) {
+                                  input.placeholder = 'Email is set';
+                              }
+                              break;
+                          default:
+                              console.warn(`Unhandled type: ${type} for input: ${name}`);
+                      }
+                  }
+              });
+              createSensorCheckboxes();
+          })
+          .catch(error => {
+              console.error('Error fetching or processing data:', error);
+              document.getElementById('infoMessage').textContent = "Error loading data, please refresh the page";
+          });
+          function createSensorCheckboxes() {
+              fetchWithTimeoutAndRetry('/data?all')
+                  .then(response => response.json())
+                  .then(data => {
+                      const bitmask = configData.PUSH_DSMR.value;
+                      const container = document.getElementById('sensorCheckboxes');
+                      container.innerHTML = '';
+          
+                      data.forEach((sensor, index) => {
+                          const isChecked = (bitmask & (1 << index)) !== 0;
+                          const checkbox = createCheckbox(sensor.friendly_name, isChecked);
+                          container.appendChild(checkbox);
+                      });
+                  })
+                  .catch(error => console.error('Error fetching sensor data:', error));
+          }
+        function createCheckbox(name, isChecked) {
+            const container = document.createElement('div');
+            container.className = 'sensor-checkbox';
+            const sensorName = document.createElement('span');
+            sensorName.textContent = name;
+            sensorName.style.textAlign = 'left';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.name = 'sensor';
+            checkbox.value = name;
+            checkbox.checked = isChecked;
+            container.appendChild(checkbox);
+            container.appendChild(sensorName);
+            return container;
+        }
+        const realTimeDataCollapsible = document.getElementById('realTimeDataCollapsible');
+        const realTimeDataContent = realTimeDataCollapsible.nextElementSibling;
+        let interval;
+        realTimeDataCollapsible.addEventListener('click', function() {
+            this.classList.toggle('active');
+            if (realTimeDataContent.style.display === "block") {
+                realTimeDataContent.style.display = "none";
+                clearInterval(interval);
+            } else {
+                realTimeDataContent.style.display = "block";
+                fetchData();
+                interval = setInterval(fetchData, 1000);
+            }
+        });
+      const passwordFields = document.querySelectorAll('input[type="password"]');
+      passwordFields.forEach(field => {
+          field.addEventListener('input', function() {
+              this.setAttribute('data-changed', 'true');
+          });
+      });
+      const form = document.getElementById('configForm');
+      form.addEventListener('submit', function(event) {
+          event.preventDefault();
+
+          const formData = new FormData(form);
+          const jsonData = {};
+          const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+          checkboxes.forEach(checkbox => {
+              if (!checkbox.closest('.sensor-checkboxes-container')) {
+                  jsonData[checkbox.name] = checkbox.checked;
+              }
+          });
+          let bitmask = 0;
+          const sensorCheckboxes = document.querySelectorAll('.sensor-checkboxes-container input[type="checkbox"]');
+          sensorCheckboxes.forEach((checkbox, index) => {
+              jsonData[checkbox.name] = checkbox.checked;
+              if (checkbox.checked) {
+                  bitmask |= 1 << index;
+              }
+          });
+          jsonData['PUSH_DSMR'] = bitmask;
+          const resetUUIDCheckbox = document.getElementById('resetUUID');
+          if (resetUUIDCheckbox.checked) {
+              jsonData['UUID'] = '';
+          }
+          formData.forEach((value, key) => {
+              const inputElement = document.querySelector(`[name="${key}"]`);
+              if (inputElement.type !== 'checkbox') {
+                  if (inputElement.type === 'password' || inputElement.type === 'email') {
+                      if (value && (inputElement.getAttribute('data-changed') === 'true' || !inputElement.placeholder.includes('set'))) {
+                          jsonData[key] = value;
+                      }
+                  } else {
+                      jsonData[key] = value;
+                  }
+              }
+          });
+          console.log('Submitting JSON:', JSON.stringify(jsonData));
+          fetch('/config', {
+              method: 'PUT',
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(jsonData)
+          })
+          .then(response => response.json())
+          .then(data => {
+              console.log('Server response:', data);
+              return fetch('/info');
+          })
+          .then(response => response.text())
+          .then(message => {
+              document.getElementById('infoMessage').textContent = message;
+          })
+          .catch(error => {
+              console.error('Error submitting data:', error);
+          });
+      });
+      const passwordInput = document.getElementById('WIFI_PASSWD');
+      const showPasswordText = document.querySelector('.show-password');
+      showPasswordText.addEventListener('mouseover', function() {
+          passwordInput.type = 'text';
+      });
+      showPasswordText.addEventListener('mouseout', function() {
+          passwordInput.type = 'password';
+      });
+  });
 )rawliteral";
 
 const char reboot_html[] PROGMEM = R"rawliteral(
