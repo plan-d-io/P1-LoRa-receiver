@@ -1,5 +1,5 @@
 /*
- * utilities.ino - WiFi, NTP, LittleFS, hostname, reboot. MVP: no TLS bundle, no MQTT.
+ * utilities.ino - WiFi, NTP, LittleFS, hostname, reboot. Secure client uses embedded cert bundle.
  */
 #include "ArduinoJson.h"
 #include <esp_system.h>
@@ -106,17 +106,10 @@ void initWifi() {
       setClock(true);
       printLocalTime(true);
       sinceConnCheck = 60000;
-      sinceUpdateCheck = 0;
-      /* HTTPS client with GitHub CA for version check, OTA, and bundle restore. */
-      setupSecureClientWithGitHubCA();
-      if (bundleLoaded) {
-        bool testOk = testSecureConnection();
-        syslog(testOk ? "HTTPS test connection OK" : "HTTPS test connection failed", testOk ? 1 : 2);
-      }
-      if (_restore_finish) {
-        syslog("Restore TLS bundle requested, starting restore", 1);
-        restoreTLSBundle();
-      }
+      /* Match old code: enable update autocheck when STA connects so version check runs after ~1 min. */
+      _update_autoCheck = true;
+      sinceUpdateCheck = 86400000 - 60000;
+      setupSecureClient();
       if (_update_start) {
         syslog("OTA update requested, starting update", 1);
         startUpdate();
@@ -178,7 +171,6 @@ void setClock(boolean firstSync) {
 void WiFiEvent(arduino_event_id_t event, arduino_event_info_t info) {
   (void)event;
   (void)info;
-  Serial.println("WiFi event");
   sinceConnCheck = 60000;
 }
 

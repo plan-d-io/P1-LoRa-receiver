@@ -1,10 +1,30 @@
 /*
- * secureClient.ino - NetworkClientSecure with hardcoded GitHub CA for version check, OTA, and TLS bundle restore.
- * No cert bundle from LittleFS yet; only setCACert(github_root_ca).
+ * secureClient.ino - NetworkClientSecure with embedded cert bundle for HTTPS (EID, MQTT TLS, OTA).
+ * The certificate bundle is embedded in flash via x509_crt_bundle.h. All outgoing HTTPS (EID push,
+ * MQTT over TLS, OTA update, version check) use the bundle. The hardcoded GitHub root CA is used
+ * only as a fallback when a connection to the GitHub update repo fails (e.g. cert chain could
+ * not be validated with the bundle), so the device can still OTA.
+ *
+ * Cert bundle source (ESP-IDF): The bundle must be generated with ESP-IDF's gen_crt_bundle.py
+ * and the .bin converted to a C array (e.g. xxd -i x509_crt_bundle.bin). Input: Mozilla/curl PEM.
+ * The script outputs a binary (subject DER + public key per cert, sorted by subject). Do NOT
+ * convert PEM to a C array directly — that causes "certificates exceed max" or verify failures.
+ * Arduino core uses CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_MAX_CERTS (often 200); if your bundle has
+ * more certs, use --filter cmn_crt_authorities.csv for a smaller bundle (~38 certs) to test.
+ * See: https://github.com/espressif/arduino-esp32/issues/10949
+ *
+ * Why only some hosts verify with the bundle: The bundle stores each root's *subject* (DER from
+ * Python cryptography). Verification compares the server chain's *issuer* (DER from the cert).
+ * If the CA encodes issuer with a different RDN order than Python's subject serialization, the
+ * byte comparison in esp_crt_bundle fails and you get "Failed to verify certificate" even though
+ * the root is in the PEM. So Facebook may match, while GitHub (DigiCert) and Google (GTS) do not.
+ * What to try: (1) Use gen_crt_bundle.py from the *same* ESP-IDF version as your Arduino core.
+ * (2) Use ESP-IDF's default input (their cacert + cacrt_local.pem if present). (3) Try the
+ * filtered bundle. (4) GitHub CA fallback is used when bundle verification fails for GitHub.
  */
 #include <HTTPClient.h>
 #include <NetworkClientSecure.h>
-#include <LittleFS.h>
+#include "x509_crt_bundle.h"
 
 /* Root CA for raw.githubusercontent.com. Assessment: with setInsecure() HTTPS works, so the
  * failure is certificate verification only. The server's chain no longer uses "DigiCert Global
@@ -47,8 +67,6 @@
     "vGp4z7h/jnZymQyd/teRCBaho1+V\n" \
     "-----END CERTIFICATE-----\n";
 
-#define TLSBUNDLE_PATH "/x509_crt_bundle.bin"
-
 /* Build version URL for plan-d-io/P1-LoRa-receiver (branch from config). */
 static String getVersionUrl() {
   String base = "https://raw.githubusercontent.com/plan-d-io/P1-LoRa-receiver/";
@@ -70,29 +88,76 @@ static String getVersionPath() {
   return path;
 }
 
-void setupSecureClientWithGitHubCA() {
+/* Switch existing secure client to GitHub CA only. Use only as fallback when connection to
+ * GitHub (version check or OTA) fails with the cert bundle (e.g. cert chain not validated). */
+void useGitHubCAOnly() {
+  if (!secureClient) return;
+  secureClient->setCACertBundle(NULL, 0);
+  secureClient->setCACert(github_root_ca);
+  syslog("Secure client: using GitHub CA only (fallback)", 0);
+}
+
+/* Switch back to embedded cert bundle (e.g. after temporarily using GitHub CA). */
+void useCertBundle() {
+  if (!secureClient) return;
+  secureClient->setCACertBundle(x509_crt_bundle, (size_t)x509_crt_bundle_len);
+  secureClient->setCACert(nullptr);
+  syslog("Secure client: using cert bundle", 0);
+}
+
+/* Create client if needed and set embedded cert bundle for arbitrary HTTPS (EID, MQTT TLS). */
+void setupSecureClient() {
   if (secureClient != nullptr) {
     syslog("Secure client already created", 0);
     return;
   }
-  syslog("Creating NetworkClientSecure with GitHub CA", 1);
+  syslog("Creating NetworkClientSecure with embedded cert bundle", 1);
   secureClient = new NetworkClientSecure;
   if (!secureClient) {
     syslog("Failed to allocate NetworkClientSecure", 3);
     bundleLoaded = false;
     return;
   }
-  /* Set CA for GitHub. We use DigiCert Global Root G2 (raw.githubusercontent.com's current chain).
-   * If verification fails, get the live root: run
-   *   openssl s_client -connect raw.githubusercontent.com:443 -showcerts </dev/null 2>/dev/null
-   * and copy the last certificate block (-----BEGIN...-----END-----) into github_root_ca below. */
-  secureClient->setCACert(github_root_ca);
+  secureClient->setCACertBundle(x509_crt_bundle, (size_t)x509_crt_bundle_len);
   bundleLoaded = true;
-  syslog("Secure client ready (GitHub CA)", 1);
+  /* Debug: bundle format is [n x uint32 offsets][cert data]. First uint32 = offset to 1st cert = n*4, so cert count = first_u32/4. */
+  if (x509_crt_bundle != nullptr && x509_crt_bundle_len >= 4u) {
+    uint32_t firstOffset = (uint32_t)x509_crt_bundle[0] | ((uint32_t)x509_crt_bundle[1] << 8) | ((uint32_t)x509_crt_bundle[2] << 16) | ((uint32_t)x509_crt_bundle[3] << 24);
+    unsigned int certCount = firstOffset / 4u;
+    syslog("Cert bundle: ptr=" + String((uint32_t)(uintptr_t)x509_crt_bundle, HEX) + " len=" + String(x509_crt_bundle_len) + " certs=" + String(certCount), 0);
+  } else {
+    syslog("Cert bundle: ptr=" + String(x509_crt_bundle ? "non-null" : "null") + " len=" + String(x509_crt_bundle_len), 0);
+  }
+  syslog("Secure client ready (cert bundle, " + String(x509_crt_bundle_len) + " bytes)", 1);
 }
 
-/* Test HTTPS connection by fetching the version file from GitHub. Log result to syslog and Serial.
- * Use full URL with begin(client, url) as in official BasicHttpsClient example. */
+/* Helper: perform one HTTPS GET to url, return true on HTTP 200/301/302. */
+static bool doVersionGet(const String& url) {
+  if (!https.begin(*secureClient, url)) return false;
+  https.setConnectTimeout(20000);
+  https.setTimeout(15000);
+  int httpCode = https.GET();
+  bool ok = (httpCode > 0 && (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY || httpCode == HTTP_CODE_FOUND));
+  if (ok) {
+    String payload = https.getString();
+    payload.trim();
+    syslog("HTTPS test OK, HTTP " + String(httpCode) + ", body: " + payload, 1);
+    if (httpDebug) Serial.println("[HTTPS] OK body: " + payload);
+    secureClientError = 0;
+  } else if (httpCode > 0) {
+    syslog("HTTPS test unexpected code " + String(httpCode), 2);
+  } else {
+    syslog("HTTPS test failed: error " + String(httpCode) + " " + String(https.errorToString(httpCode)), 2);
+    if (httpDebug) Serial.println("[HTTPS] error " + String(httpCode));
+    secureClientError++;
+  }
+  https.end();
+  return ok;
+}
+
+/* Test HTTPS connection by fetching the version file from GitHub. Uses cert bundle first;
+ * if verification fails (bundle missing root for raw.githubusercontent.com), retries with
+ * hardcoded GitHub CA so the device still works and can OTA to a firmware with updated bundle. */
 bool testSecureConnection() {
   if (!secureClient || !bundleLoaded) {
     syslog("HTTPS test skipped: secure client not ready", 2);
@@ -109,84 +174,13 @@ bool testSecureConnection() {
       Serial.println("[HTTPS] DNS (WiFi) failed");
     }
   }
-  bool ok = false;
-  if (https.begin(*secureClient, url)) {
-    https.setConnectTimeout(20000);
-    https.setTimeout(15000);
-    int httpCode = https.GET();
-    if (httpCode > 0) {
-      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-        String payload = https.getString();
-        payload.trim();
-        syslog("HTTPS test OK, HTTP " + String(httpCode) + ", body: " + payload, 1);
-        if (httpDebug) Serial.println("[HTTPS] OK body: " + payload);
-        ok = true;
-        secureClientError = 0;
-      } else {
-        syslog("HTTPS test unexpected code " + String(httpCode), 2);
-        if (httpDebug) Serial.println("[HTTPS] code " + String(httpCode));
-      }
-    } else {
-      syslog("HTTPS test failed: error " + String(httpCode) + " " + String(https.errorToString(httpCode)), 2);
-      if (httpDebug) Serial.println("[HTTPS] error " + String(httpCode) + " " + String(https.errorToString(httpCode)));
-      secureClientError++;
-    }
-    https.end();
-  } else {
-    syslog("HTTPS test: begin() failed", 2);
-    if (httpDebug) Serial.println("[HTTPS] begin failed");
+  bool ok = doVersionGet(url);
+  if (!ok) {
+    syslog("HTTPS test: retrying with GitHub CA (bundle may not verify this host)", 1);
+    useGitHubCAOnly();
+    ok = doVersionGet(url);
+    useCertBundle();
+    if (ok) syslog("HTTPS test OK with GitHub CA fallback", 1);
   }
   return ok;
-}
-
-/* Restore TLS bundle from GitHub into LittleFS (for future use). Uses GitHub CA only. */
-void restoreTLSBundle() {
-  if (!secureClient) {
-    syslog("Restore: secure client not ready", 3);
-    return;
-  }
-  secureClient->setCACert(github_root_ca);
-  syslog("Restore: downloading TLS bundle to LittleFS", 1);
-  String fileUrl = "https://raw.githubusercontent.com/plan-d-io/P1-dongle/main/data/x509_crt_bundle.bin";
-  if (httpDebug) Serial.println("[Restore] " + fileUrl);
-  File f = LittleFS.open(TLSBUNDLE_PATH, "w");
-  if (!f) {
-    syslog("Restore: could not open " + String(TLSBUNDLE_PATH) + " for write", 3);
-    return;
-  }
-  bool writtenOk = false;
-  if (https.begin(*secureClient, fileUrl)) {
-    https.setConnectTimeout(20000);
-    https.setTimeout(30000);
-    int httpCode = https.GET();
-    if (httpCode > 0 && (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY || httpCode == HTTP_CODE_FOUND)) {
-      long contentLength = https.getSize();
-      syslog("Restore: bundle size " + String(contentLength), 0);
-      size_t written = https.writeToStream(&f);
-      if (written == (size_t)contentLength) {
-        syslog("Restore: written " + String(written) + " bytes", 1);
-        writtenOk = true;
-      } else {
-        syslog("Restore: wrote " + String(written) + "/" + String(contentLength), 2);
-      }
-    } else {
-      syslog("Restore: HTTP " + String(httpCode) + " " + String(https.errorToString(httpCode)), 2);
-    }
-    https.end();
-  } else {
-    syslog("Restore: begin() failed", 2);
-  }
-  f.close();
-  if (!writtenOk) {
-    LittleFS.remove(TLSBUNDLE_PATH);
-    syslog("Restore: removed partial file", 1);
-    return;
-  }
-  _restore_finish = false;
-  _reinit_spiffs = false;
-  saveResetReason("Rebooting after TLS bundle restore");
-  saveConfig();
-  syslog("Restore: rebooting", 1);
-  delay(500);
-  ESP.restart();
 }

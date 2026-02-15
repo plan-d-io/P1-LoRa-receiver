@@ -1,6 +1,7 @@
 /*
  * P1-LoRa-receiver MVP - Webserver + WiFi + NTP + config.
- * Target: M5Stack Atom Lite. HTTPS client (GitHub CA), OTA, TLS bundle restore.
+ * Target: M5Stack Atom Lite. HTTPS client with embedded cert bundle (x509_crt_bundle.h) for
+ * EID, MQTT TLS, OTA; GitHub root CA used only as fallback when GitHub connection fails.
  */
 #include "boards.h"
 #include <esp_system.h>
@@ -30,11 +31,11 @@ AsyncWebServer server(80);
 DNSServer dnsServer;
 UUID uuid;
 
-/* HTTPS client: single hardcoded GitHub CA for version check, OTA, and bundle restore. */
+/* HTTPS client: embedded cert bundle for all HTTPS (EID, MQTT TLS, OTA); GitHub CA fallback only when GitHub fails. */
 NetworkClientSecure* secureClient = nullptr;
 HTTPClient https;
 unsigned int onlineVersion = 0;
-bool bundleLoaded = false;   /* true once secure client is configured (GitHub CA or later: bundle) */
+bool bundleLoaded = false;   /* true once secure client is configured with cert bundle */
 bool clientSecureBusy = false;
 unsigned int secureClientError = 0;
 
@@ -70,10 +71,8 @@ uint8_t mac[6];
 
 bool httpDebug = false;
 
-/* Forward declarations for HTTPS/OTA/restore (implemented in secureClient.ino and upgrade.ino). */
-void setupSecureClientWithGitHubCA();
-bool testSecureConnection();
-void restoreTLSBundle();
+/* Forward declarations for HTTPS/OTA (implemented in secureClient.ino and upgrade.ino). */
+void setupSecureClient();
 bool checkUpdate();
 bool startUpdate();
 bool finishUpdate(bool restore);
@@ -164,11 +163,11 @@ void loop() {
       sinceClockCheck = 0;
     }
   } else {
-    if (!bundleLoaded && secureClient) {
-      setupSecureClientWithGitHubCA();
-      if (bundleLoaded) testSecureConnection();
+    if (!bundleLoaded && _wifi_STA && WiFi.status() == WL_CONNECTED) {
+      setupSecureClient();
     }
     if (_update_autoCheck && sinceUpdateCheck >= 86400000) {
+      syslog("Firmware version check (every 24h)", 0);
       bool updateAvailable = checkUpdate();
       if (updateAvailable) startUpdate();
       sinceUpdateCheck = 0;
