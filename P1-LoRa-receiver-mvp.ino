@@ -1,16 +1,19 @@
 /*
  * P1-LoRa-receiver MVP - Webserver + WiFi + NTP + config.
- * Target: M5Stack Atom Lite. No LoRa, MQTT, or HTTP upload in this build.
+ * Target: M5Stack Atom Lite. HTTPS client (GitHub CA), OTA, TLS bundle restore.
  */
 #include "boards.h"
 #include <esp_system.h>
 #include <WiFi.h>
+#include <HTTPClient.h>
+#include <NetworkClientSecure.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <Preferences.h>
 #include <time.h>
+#include <Update.h>
 #include "ArduinoJson.h"
 #include <elapsedMillis.h>
 #include "UUID.h"
@@ -26,6 +29,14 @@ SemaphoreHandle_t syslogMutex = NULL;
 AsyncWebServer server(80);
 DNSServer dnsServer;
 UUID uuid;
+
+/* HTTPS client: single hardcoded GitHub CA for version check, OTA, and bundle restore. */
+NetworkClientSecure* secureClient = nullptr;
+HTTPClient https;
+unsigned int onlineVersion = 0;
+bool bundleLoaded = false;   /* true once secure client is configured (GitHub CA or later: bundle) */
+bool clientSecureBusy = false;
+unsigned int secureClientError = 0;
 
 bool resetWifi = false;
 bool factoryReset = false;
@@ -51,12 +62,21 @@ elapsedMillis sinceRebootCheck;
 elapsedMillis sinceWifiCheck;
 elapsedMillis sinceClockCheck;
 elapsedMillis sinceBoot;
+elapsedMillis sinceUpdateCheck;
 
 unsigned int reconncount = 0;
 int wifiRSSI = 0;
 uint8_t mac[6];
 
 bool httpDebug = false;
+
+/* Forward declarations for HTTPS/OTA/restore (implemented in secureClient.ino and upgrade.ino). */
+void setupSecureClientWithGitHubCA();
+bool testSecureConnection();
+void restoreTLSBundle();
+bool checkUpdate();
+bool startUpdate();
+bool finishUpdate(bool restore);
 
 void setup() {
   Serial.begin(115200);
@@ -144,6 +164,15 @@ void loop() {
       sinceClockCheck = 0;
     }
   } else {
+    if (!bundleLoaded && secureClient) {
+      setupSecureClientWithGitHubCA();
+      if (bundleLoaded) testSecureConnection();
+    }
+    if (_update_autoCheck && sinceUpdateCheck >= 86400000) {
+      bool updateAvailable = checkUpdate();
+      if (updateAvailable) startUpdate();
+      sinceUpdateCheck = 0;
+    }
     if (sinceClockCheck >= 3600) {
       if (!timeconfigured) timeSet = false;
       sinceClockCheck = 0;

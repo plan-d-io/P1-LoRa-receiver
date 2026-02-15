@@ -106,6 +106,25 @@ void initWifi() {
       setClock(true);
       printLocalTime(true);
       sinceConnCheck = 60000;
+      sinceUpdateCheck = 0;
+      /* HTTPS client with GitHub CA for version check, OTA, and bundle restore. */
+      setupSecureClientWithGitHubCA();
+      if (bundleLoaded) {
+        bool testOk = testSecureConnection();
+        syslog(testOk ? "HTTPS test connection OK" : "HTTPS test connection failed", testOk ? 1 : 2);
+      }
+      if (_restore_finish) {
+        syslog("Restore TLS bundle requested, starting restore", 1);
+        restoreTLSBundle();
+      }
+      if (_update_start) {
+        syslog("OTA update requested, starting update", 1);
+        startUpdate();
+      }
+      if (_update_finish) {
+        syslog("Finish update requested", 1);
+        finishUpdate(false);
+      }
     } else {
       syslog("Could not connect to WiFi", 2);
       wifiError = true;
