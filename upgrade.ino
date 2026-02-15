@@ -87,6 +87,11 @@ bool startUpdate() {
     return false;
   }
   syslog("OTA start: preparing firmware upgrade", 1);
+  if (_mqtt_en && _mqtt_tls && mqttclientSecure.connected()) {
+    String mqtt_topic = "plan-d/" + String(apSSID);
+    mqttclientSecure.publish(mqtt_topic.c_str(), "offline", true);
+    mqttclientSecure.disconnect();
+  }
   clientSecureBusy = true;
   String fileUrl = getFirmwareBaseUrl() + "P1-LoRa-receiver-mvp.ino.m5stack_atom.bin";
   syslog("OTA: GET " + fileUrl, 0);

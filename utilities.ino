@@ -7,6 +7,7 @@
 
 String timestring;
 
+/* Reset reason strings from esp_reset_reason_t (ESP-IDF / Arduino ESP32 core 3.x). */
 void get_reset_reason(int reason) {
   switch (reason) {
     case 0:  resetReason = "UNKNOWN"; break;
@@ -110,6 +111,7 @@ void initWifi() {
       _update_autoCheck = true;
       sinceUpdateCheck = 86400000 - 60000;
       setupSecureClient();
+      if (_mqtt_en) setupMqtt();
       if (_update_start) {
         syslog("OTA update requested, starting update", 1);
         startUpdate();
@@ -179,6 +181,7 @@ void checkConnection() {
     syslog("Lost WiFi, reconnecting...", 2);
     WiFi.disconnect();
     wifiError = true;
+    mqttClientError = true;
     elapsedMillis t;
     while (WiFi.status() != WL_CONNECTED && t < 20000) {
       WiFi.begin(_wifi_ssid.c_str(), _wifi_password.c_str());
@@ -191,10 +194,26 @@ void checkConnection() {
   }
   if (wifiError && WiFi.status() == WL_CONNECTED) {
     wifiError = false;
-    reconncount = 0;
     syslog("WiFi reconnected", 1);
+    reconncount = 0;
   }
-  if (WiFi.status() == WL_CONNECTED) wifiRSSI = WiFi.RSSI();
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiRSSI = WiFi.RSSI();
+    if (_mqtt_en && !mqttPaused) {
+      if (mqttPushFails > 5) {
+        mqttClientError = true;
+        syslog("MQTT client connection failed", 4);
+        mqttPushFails = 0;
+        reconncount++;
+      }
+      if (mqttHostError) setupMqtt();
+      else connectMqtt();
+      if (mqttWasPaused) {
+        connectMqtt();
+        mqttWasPaused = false;
+      }
+    }
+  }
 }
 
 void setReboot() {

@@ -13,6 +13,7 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <Preferences.h>
+#include <PubSubClient.h>
 #include <time.h>
 #include <Update.h>
 #include "ArduinoJson.h"
@@ -34,6 +35,17 @@ UUID uuid;
 /* HTTPS client: embedded cert bundle for all HTTPS (EID, MQTT TLS, OTA); GitHub CA fallback only when GitHub fails. */
 NetworkClientSecure* secureClient = nullptr;
 HTTPClient https;
+
+/* MQTT: plain and TLS; TLS reuses secureClient (set in setupMqtt when _mqtt_tls). */
+WiFiClient wificlient;
+PubSubClient mqttclient(wificlient);
+PubSubClient mqttclientSecure;  /* setClient(*secureClient) in setupMqtt when _mqtt_tls */
+bool mqttWasConnected = false;
+bool mqttWasPaused = false;
+bool mqttPaused = false;
+unsigned int mqttPushFails = 0;
+unsigned int mqttPushCount = 0;
+bool mqttDebug = false;
 unsigned int onlineVersion = 0;
 bool bundleLoaded = false;   /* true once secure client is configured with cert bundle */
 bool clientSecureBusy = false;
@@ -49,6 +61,7 @@ bool timeconfigured = false;
 bool spiffsMounted = false;
 bool rebootInit = false;
 bool EIDuploadEn = false;
+bool haDiscovered = false;
 
 String configBuffer;
 String resetReason;
@@ -64,9 +77,14 @@ elapsedMillis sinceWifiCheck;
 elapsedMillis sinceClockCheck;
 elapsedMillis sinceBoot;
 elapsedMillis sinceUpdateCheck;
+elapsedMillis sinceLastUpload;
+elapsedMillis sinceDebugUpload;
 
 unsigned int reconncount = 0;
 int wifiRSSI = 0;
+float freeHeap = 0;
+float minFreeHeap = 0;
+float maxAllocHeap = 0;
 uint8_t mac[6];
 
 bool httpDebug = false;
@@ -76,6 +94,15 @@ void setupSecureClient();
 bool checkUpdate();
 bool startUpdate();
 bool finishUpdate(bool restore);
+
+/* Forward declarations for MQTT (implemented in mqtt.ino). */
+void setupMqtt();
+void connectMqtt();
+bool pubMqtt(String topic, String payload, boolean retain);
+
+/* Forward declarations for HA and debug (implemented in homeAssistant.ino and debug.ino). */
+void hadebugDevice(bool eraseMeter);
+void getHeapDebug();
 
 void setup() {
   Serial.begin(115200);
@@ -126,6 +153,8 @@ void setup() {
   setupServer();
   syslog("Web server routes registered", 1);
   sinceBoot = 0;
+  sinceDebugUpload = 0;
+  sinceLastUpload = 0;
 
   syslog("Setup done", 1);
   unitState = (_wifi_STA && WiFi.status() == WL_CONNECTED) ? 4 : 0;
@@ -166,7 +195,12 @@ void loop() {
     if (!bundleLoaded && _wifi_STA && WiFi.status() == WL_CONNECTED) {
       setupSecureClient();
     }
+    if (_mqtt_en) {
+      if (_mqtt_tls) mqttclientSecure.loop();
+      else mqttclient.loop();
+    }
     if (_update_autoCheck && sinceUpdateCheck >= 86400000) {
+      hadebugDevice(false);
       syslog("Firmware version check (every 24h)", 0);
       bool updateAvailable = checkUpdate();
       if (updateAvailable) startUpdate();
@@ -177,8 +211,13 @@ void loop() {
       sinceClockCheck = 0;
     }
     if (sinceConnCheck >= 60000) {
+      if (_ha_en && debugInfo) hadebugDevice(false);
       checkConnection();
       sinceConnCheck = 0;
+    }
+    if (sinceDebugUpload >= 300000) {
+      getHeapDebug();
+      sinceDebugUpload = 0;
     }
   }
 }

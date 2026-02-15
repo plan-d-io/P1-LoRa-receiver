@@ -1,6 +1,6 @@
 # P1-LoRa-receiver MVP
 
-Minimal firmware for **M5Stack Atom Lite**: web server, WiFi (STA/AP), NTP, and NVS config. No LoRa, MQTT, or HTTP upload. Use this build to verify the web UI and housekeeping before adding the rest.
+Firmware for **M5Stack Atom Lite**: web server, WiFi (STA/AP), NTP, NVS config, and **MQTT** (plain and TLS). No LoRa or HTTP push yet. MQTT is used to publish data and receive commands (reboot, loraset, config).
 
 ## Target board
 
@@ -20,18 +20,19 @@ Minimal firmware for **M5Stack Atom Lite**: web server, WiFi (STA/AP), NTP, and 
 4. **elapsedMillis** by Peter Feerick
 5. **UUID** by Rob Tillaart
 6. **Adafruit NeoPixel** by Adafruit (for built-in RGB LED on Atom Lite)
+7. **PubSubClient** by Nick O'Leary (for MQTT)
 
 ### Install steps
 
 1. **Arduino IDE** → Sketch → Include Library → Manage Libraries.
-2. Search and install: **AsyncTCP** (ESP32Async), **ESPAsyncWebServer** (ESP32Async), **ArduinoJson**, **elapsedMillis**, **UUID**, **Adafruit NeoPixel**.
+2. Search and install: **AsyncTCP** (ESP32Async), **ESPAsyncWebServer** (ESP32Async), **ArduinoJson**, **elapsedMillis**, **UUID**, **Adafruit NeoPixel**, **PubSubClient**.
 3. **Tools** → **Board** → **ESP32 Arduino** → **M5Stack-ATOM** (or **M5Stack Atom Lite** if listed).
 4. **Tools** → **Partition Scheme** → e.g. **Default 4MB with spiffs (1.2MB APP/1.5MB SPIFFS)** or **Minimal SPIFFS** if you use OTA later.
 5. **Tools** → **Upload Speed** → **115200** (or 921600 if stable).
 
 ## Build and upload
 
-1. Open `P1-LoRa-receiver.ino` in Arduino IDE.
+1. Open `P1-LoRa-receiver-mvp.ino` in Arduino IDE.
 2. Connect the M5Stack Atom Lite via USB.
 3. **Tools** → **Port** → select the correct COM port.
 4. **Sketch** → **Upload**.
@@ -62,10 +63,9 @@ Minimal firmware for **M5Stack Atom Lite**: web server, WiFi (STA/AP), NTP, and 
 - **115200** baud.
 - Logs and debug go to Serial; `httpDebug` in the main .ino can be set to `true` for request logging.
 
-## Next steps (not in this MVP)
+## Next steps (not in this build)
 
 - LoRa receive and parsing  
-- MQTT publish  
 - HTTP(S) push  
 - Home Assistant / EnergieID  
 
